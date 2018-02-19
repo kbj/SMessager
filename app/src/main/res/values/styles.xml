@@ -1,0 +1,40 @@
+<resources>
+
+    <!-- Base application theme. -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <!-- Customize your theme here. -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">#507ca1</item>
+    </style>
+
+    <!--登录主题-->
+    <style name="LoginTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorAccent">#507ca1</item>
+        <item name="colorPrimaryDark">#426382</item>
+        <item name="colorControlActivated">#507ca1</item>
+    </style>
+
+    <!--注册的主题-->
+    <style name="RegisterTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorControlActivated">#fff</item>
+        <item name="colorAccent">#507ca1</item>
+    </style>
+
+    <!-- ToolBar菜单白色字体样式 -->
+    <style name="ToolbarTheme" parent="Theme.AppCompat.NoActionBar">
+        <!--<item name="colorPrimary">@color/white</item>
+        <item name="colorPrimaryDark">@color/white</item>-->
+        <item name="colorAccent">@color/white</item>
+    </style>
+
+    <style name="SearchViewTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorAccent">#507ca1</item>
+        <item name="colorPrimaryDark">#426382</item>
+        <item name="colorControlActivated">#507ca1</item>
+        <item name="contentInsetStart">0dp</item>
+        <item name="contentInsetStartWithNavigation">0dp</item>
+        <!--设置menu中item的图标颜色-->
+        <item name="android:textColorSecondary">#ffffff</item>
+    </style>
+</resources>

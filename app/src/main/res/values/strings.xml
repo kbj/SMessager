@@ -1,0 +1,34 @@
+<resources>
+    <string name="app_name">SMessager</string>
+    <string name="login_success">login success</string>
+    <string name="waiting_for_network">Connecting…</string>
+    <string name="login">LOGIN</string>
+    <string name="Username">UserName</string>
+    <string name="loginMessage">UserName/Email</string>
+    <string name="Password">Password</string>
+    <string name="forgot_your_password">Forgot your password ?</string>
+    <string name="go">GO</string>
+    <string name="repeat_password">Repeat Password</string>
+    <string name="email_address">Email</string>
+    <string name="next">NEXT</string>
+    <string name="register">REGISTER</string>
+
+    <!--注册页面表单校验-->
+    <string name="password_repeat_password_not_same">Password And Repeat Password Not Same!</string>
+    <string name="error_email_address">The Email Address is error!</string>
+    <string name="empty_username">The UserName is not empty!</string>
+    <string name="password_length_too_short">The password should be longer than six digits!</string>
+    <string name="imei_permission">Please allow app to get imei!</string>
+    <string name="register_success">Register Success! Please click the verify email link in your inbox before you log in!</string>
+    <string name="http_failure">Http error! Please Check Your Network Status!</string>
+    <string name="register_failure">Register failure! Error Message：</string>
+    <string name="navigation_drawer_open">open</string>
+    <string name="navigation_drawer_close">close</string>
+    <string name="contacts">Contacts</string>
+    <string name="setting">Settings</string>
+    <string name="connection_lost">Connection Close!</string>
+    <string name="user_info_error">User Info Error! Please Login Again!</string>
+    <string name="new_chat">New Chat</string>
+    <string name="seen_on">seen on</string>
+
+</resources>
