@@ -1,14 +1,18 @@
 package me.weey.graduationproject.client.smessager.adapter;
 
+import android.app.Activity;
 import android.content.Context;
+import android.graphics.drawable.AnimationDrawable;
 import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
+import com.ruochuan.bubblelayout.BubbleLayout;
 import com.vondear.rxtools.RxTimeTool;
 
 import java.util.Date;
@@ -16,11 +20,13 @@ import java.util.List;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import butterknife.OnClick;
 import me.weey.graduationproject.client.smessager.R;
 import me.weey.graduationproject.client.smessager.entity.ChatMessage;
 import me.weey.graduationproject.client.smessager.entity.User;
 import me.weey.graduationproject.client.smessager.glide.GlideApp;
 import me.weey.graduationproject.client.smessager.utils.Constant;
+import me.weey.graduationproject.client.smessager.utils.MediaManager;
 
 /**
  * 聊天界面的Adapter
@@ -34,6 +40,9 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private LayoutInflater inflater;
     private User mMyUser;
     private User friendUser;
+
+    public static Boolean mIsPlayingVoice = false;     //是否正在播放音乐
+    public static Integer mPlayListPosition = -1;         //正在播放音乐的那个ImageView的ID
 
     //建立枚举，3种不同的消息类型
     public enum MESSAGE_TYPE {
@@ -58,10 +67,16 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     @Override
     public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
         if (viewType == MESSAGE_TYPE.TEXT.ordinal()) {
+            //文本类型
             //引入View
             View view = inflater.inflate(R.layout.list_bubble_text, parent, false);
             //返回Holder
             return new TextMessageViewHolder(view);
+        } else if (viewType == MESSAGE_TYPE.AUDIO.ordinal()) {
+            //语音类型
+            View view = inflater.inflate(R.layout.list_bubble_voice, parent, false);
+            //返回holder
+            return new VoiceMessageViewHolder(view);
         }
         return null;
     }
@@ -73,32 +88,80 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
         ChatMessage message = mChatMessages.get(position);
         switch (message.getMessageType()) {
-            case 0:
+            case Constant.CHAT_MESSAGE_TYPE_TEXT:
                 //文字信息
-                if (message.getChatType() == 0) {
-                    //发送的消息
-                    ((TextMessageViewHolder)holder).mReceiveMsg.setVisibility(View.GONE);
-                    ((TextMessageViewHolder)holder).mSendMsg.setVisibility(View.VISIBLE);
-                    setAvatar(((TextMessageViewHolder)holder).mSendAvatar, mMyUser);
-                    setTime(((TextMessageViewHolder)holder).mSendMsgTime, message.getTime());
-                    ((TextMessageViewHolder)holder).mSendMsgContent.setText(message.getMessage().trim());
-                    //字数少的时候加点料
-                    if (message.getMessage().trim().length() < 5) {
-                        ((TextMessageViewHolder)holder).mSendMsgTime.setText("     " + ((TextMessageViewHolder)holder).mSendMsgTime.getText());
-                    }
-                } else if (message.getChatType() == 1) {
-                    //接收的消息
-                    ((TextMessageViewHolder)holder).mReceiveMsg.setVisibility(View.VISIBLE);
-                    ((TextMessageViewHolder)holder).mSendMsg.setVisibility(View.GONE);
-                    setAvatar(((TextMessageViewHolder)holder).mReceiveAvatar, friendUser);
-                    setTime(((TextMessageViewHolder)holder).mReceiveMsgTime, message.getTime());
-                    ((TextMessageViewHolder)holder).mReceiveMsgContent.setText(message.getMessage().trim());
-                    //字数少的时候加点料
-                    if (message.getMessage().trim().length() < 5) {
-                        ((TextMessageViewHolder)holder).mReceiveMsgTime.setText("     " + ((TextMessageViewHolder)holder).mReceiveMsgTime.getText().toString());
-                    }
-                }
+                showText((TextMessageViewHolder) holder, message);
                 break;
+            case Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN:
+            case Constant.CHAT_MESSAGE_TYPE_VOICE_NEW:
+                //语音信息
+                showVoice((VoiceMessageViewHolder) holder, message);
+                break;
+            case Constant.CHAT_MESSAGE_TYPE_IMAGE:
+                //图片信息
+                break;
+        }
+    }
+
+    /**
+     * 对语音类型的消息的显示
+     */
+    private void showVoice(VoiceMessageViewHolder holder, ChatMessage message) {
+        //判断消息收到还是发送
+        if (message.getChatType() == Constant.CHAT_TYPE_SEND) {
+            //发送的消息
+            holder.mReceiveMsg.setVisibility(View.GONE);
+            holder.mSendMsg.setVisibility(View.VISIBLE);
+            holder.mReceiveVoice.setVisibility(View.GONE);
+            holder.mSendVoice.setVisibility(View.VISIBLE);
+            setAvatar(holder.mSendAvatar, mMyUser);
+            setTime(holder.mSendVoiceTime, message.getTime());
+            holder.mSendVoiceSecond.setText(message.getVoiceSecond());
+        } else if (message.getChatType() == Constant.CHAT_TYPE_RECEIVE){
+            //接收的消息
+            holder.mReceiveMsg.setVisibility(View.VISIBLE);
+            holder.mSendMsg.setVisibility(View.GONE);
+            holder.mReceiveVoice.setVisibility(View.VISIBLE);
+            holder.mSendVoice.setVisibility(View.GONE);
+            setAvatar(holder.mReceiveAvatar, friendUser);
+            setTime(holder.mReceiveVoiceTime, message.getTime());
+            holder.mReceiveVoiceSecond.setText(message.getVoiceSecond());
+            if (message.getMessageType() == Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN) {
+                //是已读的语音消息
+                holder.mUnreadVoice.setVisibility(View.GONE);
+            } else if (message.getMessageType() == Constant.CHAT_MESSAGE_TYPE_VOICE_NEW) {
+                //未读的语音消息
+                holder.mUnreadVoice.setVisibility(View.VISIBLE);
+            }
+        }
+    }
+
+    /**
+     * 对文本类型的消息显示
+     */
+    private void showText(TextMessageViewHolder holder, ChatMessage message) {
+        if (message.getChatType() == Constant.CHAT_TYPE_SEND) {
+            //发送的消息
+            holder.mReceiveMsg.setVisibility(View.GONE);
+            holder.mSendMsg.setVisibility(View.VISIBLE);
+            setAvatar(holder.mSendAvatar, mMyUser);
+            setTime(holder.mSendMsgTime, message.getTime());
+            holder.mSendMsgContent.setText(message.getMessage().trim());
+            //字数少的时候加点料
+            if (message.getMessage().trim().length() < 5) {
+                holder.mSendMsgTime.setText("     " + holder.mSendMsgTime.getText());
+            }
+        } else if (message.getChatType() == Constant.CHAT_TYPE_RECEIVE) {
+            //接收的消息
+            holder.mReceiveMsg.setVisibility(View.VISIBLE);
+            holder.mSendMsg.setVisibility(View.GONE);
+            setAvatar(holder.mReceiveAvatar, friendUser);
+            setTime(holder.mReceiveMsgTime, message.getTime());
+            holder.mReceiveMsgContent.setText(message.getMessage().trim());
+            //字数少的时候加点料
+            if (message.getMessage().trim().length() < 5) {
+                holder.mReceiveMsgTime.setText("     " + holder.mReceiveMsgTime.getText().toString());
+            }
         }
     }
 
@@ -131,7 +194,14 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
      * 显示头像
      */
     private void setAvatar(ImageView holder, User user) {
-        String avatarURL = Constant.SERVER_ADDRESS + "account/avatars/" + user.getId();
+        String avatarURL;
+
+        if (user != null) {
+            avatarURL = Constant.SERVER_ADDRESS + "account/avatars/" + user.getId();
+        } else {
+            avatarURL = "";
+        }
+
         GlideApp.with(mContext)
                 .load(avatarURL)
                 //占位图
@@ -157,9 +227,9 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     @Override
     public int getItemViewType(int position) {
         int messageType = mChatMessages.get(position).getMessageType();
-        if (messageType == 1) {
+        if (messageType == Constant.CHAT_MESSAGE_TYPE_IMAGE) {
             return MESSAGE_TYPE.PICTURE.ordinal();
-        } else if (messageType == 2) {
+        } else if (messageType == Constant.CHAT_MESSAGE_TYPE_VOICE_NEW || messageType == Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN) {
             return MESSAGE_TYPE.AUDIO.ordinal();
         } else {
             return MESSAGE_TYPE.TEXT.ordinal();
@@ -167,12 +237,13 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
 
     /**
-     * 新增文本条目
+     * 新增条目
      */
-    public void addTextMessage(ChatMessage chatMessage) {
+    public void addMessage(ChatMessage chatMessage) {
         mChatMessages.add(chatMessage);
         notifyItemInserted(mChatMessages.size() - 1);
     }
+
 
     /**
      * 文字消息的ViewHolder
@@ -194,5 +265,49 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             //绑定UI
             ButterKnife.bind(this, itemView);
         }
+    }
+
+    /**
+     * 语音消息的ViewHolder
+     */
+    class VoiceMessageViewHolder extends RecyclerView.ViewHolder {
+
+        @BindView(R.id.rv_chat_receive_voice) RelativeLayout mReceiveMsg;
+        @BindView(R.id.iv_receive_voice_avatar) ImageView mReceiveAvatar;
+        @BindView(R.id.iv_chat_message_receive_voice) View mReceiveVoice;
+        @BindView(R.id.tv_chat_message_receive_voice_second) TextView mReceiveVoiceSecond;
+        @BindView(R.id.tv_chat_message_receive_voice_time) TextView mReceiveVoiceTime;
+        @BindView(R.id.iv_unread_voice) ImageView mUnreadVoice;
+
+        @BindView(R.id.rv_chat_send_text) RelativeLayout mSendMsg;
+        @BindView(R.id.iv_send_voice_avatar) ImageView mSendAvatar;
+        @BindView(R.id.tv_chat_message_send_voice_second) TextView mSendVoiceSecond;
+        @BindView(R.id.iv_chat_message_send_voice) View mSendVoice;
+        @BindView(R.id.tv_chat_message_send_voice_time) TextView mSendVoiceTime;
+
+        public VoiceMessageViewHolder(View itemView) {
+            super(itemView);
+            //绑定UI
+            ButterKnife.bind(this, itemView);
+        }
+
+        /**
+         * 气泡的点击事件
+         * 播放语音，如果此时正在播放，需要先暂停，同时停止另外的动画播放
+         */
+        @OnClick({R.id.bl_send_bubble, R.id.bl_receive_bubble})
+        public void clickVoiceBubble(View bubble) {
+            bubbleClickListener.onClick(bubble, getAdapterPosition());
+        }
+    }
+
+    public static interface onClickBubbleListener {
+        void onClick(View view, int position);
+    }
+
+    private onClickBubbleListener bubbleClickListener;
+
+    public void setBubbleClickListener(onClickBubbleListener bubbleClickListener) {
+        this.bubbleClickListener = bubbleClickListener;
     }
 }

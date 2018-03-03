@@ -30,7 +30,7 @@ public class ChatListOpenHelper extends SQLiteOpenHelper {
         db.execSQL("create table chat_list(user_id TEXT primary key, avatar_url TEXT, user_name TEXT, latest_message TEXT, time TEXT, is_new_message integer)");
         db.execSQL("CREATE UNIQUE INDEX id ON chat_list(user_id COLLATE BINARY ASC)");
 
-        db.execSQL("CREATE TABLE chat_message(id TEXT NOT NULL PRIMARY KEY, user_id text NOT NULL, message TEXT, time TEXT, chat_type integer NOT NULL, message_type integer NOT NULL)");
+        db.execSQL("CREATE TABLE chat_message(id TEXT NOT NULL PRIMARY KEY, user_id text NOT NULL, message TEXT, time TEXT, chat_type integer NOT NULL, message_type integer NOT NULL, voice_second TEXT)");
         db.execSQL("CREATE INDEX user_id ON chat_message(user_id COLLATE BINARY)");
 
         //添加假数据

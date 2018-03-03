@@ -24,7 +24,9 @@ import android.util.Log;
 
 import com.vondear.rxtools.RxEncryptTool;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
@@ -168,7 +170,7 @@ public class CommonUtil {
                 randomAccessFile.close();
             }
         }
-        return (int) (duration / 1000);
+        return Math.round(duration / 1000);
     }
 
     /**
@@ -239,4 +241,33 @@ public class CommonUtil {
 
          notificationManager.notify(notifyId, builder.build());
      }
+
+    /**
+     * 把字节数组保存为一个文件
+     * @EditTime 2007-8-13 上午11:45:56
+     */
+    public static File getFileFromBytes(byte[] b, String outputFile) {
+        BufferedOutputStream stream = null;
+        File file = null;
+        try {
+            file = new File(outputFile);
+            if (!file.getParentFile().exists()) {
+                file.getParentFile().mkdirs();
+            }
+            FileOutputStream fstream = new FileOutputStream(file);
+            stream = new BufferedOutputStream(fstream);
+            stream.write(b);
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            if (stream != null) {
+                try {
+                    stream.close();
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+                }
+            }
+        }
+        return file;
+    }
 }

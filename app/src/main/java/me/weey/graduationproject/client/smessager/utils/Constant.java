@@ -15,7 +15,8 @@ public class Constant {
     /**
      * 服务端的地址
      */
-    public static final String SERVER_ADDRESS = "http://192.168.157.1:8080/";
+//    public static final String SERVER_ADDRESS = "http://192.168.157.1:8080/";
+    public static final String SERVER_ADDRESS = "http://kpw.free.ngrok.cc/";
 
     /**
      * 服务器公钥，先暂时写死
@@ -58,6 +59,11 @@ public class Constant {
      * 获取手机IMEI信息的权限
      */
     public static final int PERMISSION_READ_PHONE_STATE = 2000;
+
+    /**
+     * 录音的权限
+     */
+    public static final int PERMISSION_RECORD_AUDIO = 2001;
 
     /**
      * --------------------------------------------------------------
@@ -121,6 +127,23 @@ public class Constant {
      */
     public static final int CODE_PROCESS_FAILURE = 505;
 
+    /**
+     * 发送的消息
+     */
+    public static final int CHAT_TYPE_SEND = 0;
+
+    /**
+     * 接收的消息
+     */
+    public static final int CHAT_TYPE_RECEIVE = 1;
+
+    /**
+     * 聊天消息的类型
+     */
+    public static final int CHAT_MESSAGE_TYPE_TEXT = 0;     //文本消息
+    public static final int CHAT_MESSAGE_TYPE_IMAGE = 1;    //图片消息
+    public static final int CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN = 2;    //语音消息已经播放过
+    public static final int CHAT_MESSAGE_TYPE_VOICE_NEW = 3;            //新的语音消息未播放
 
     /**
      * -------------------定义文件的一些路径-------------------------

@@ -3,9 +3,11 @@ package me.weey.graduationproject.client.smessager.service;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.ContentValues;
+import android.content.Context;
 import android.content.Intent;
 import android.database.sqlite.SQLiteDatabase;
 import android.graphics.BitmapFactory;
+import android.media.MediaMetadataRetriever;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.Message;
@@ -23,6 +25,7 @@ import com.vondear.rxtools.RxFileTool;
 import com.vondear.rxtools.RxTimeTool;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Type;
 import java.security.InvalidKeyException;
@@ -648,18 +651,52 @@ public class LoginHandlerService extends Service {
         //首先，需要用aes密码解密
         String aesKeyBase64 = Constant.getAesKeyMapInstant().get(friendUser.getId());
         byte[] aesKeyDecode = RxEncodeTool.base64Decode(aesKeyBase64);
-        //获取信息，解密
+        //获取信息
         Msg msg = JSON.parseObject(dataStructure.getMessage(), Msg.class);
-        String receiveMsg = AESUtil.Aes256Decode(msg.getMessage(), aesKeyDecode);
+        if (msg == null) return;
 
-        //图片，保存到本地
-        String picturePath = getCacheDir() + "/picture/" + RxEncryptTool.encryptMD5ToString(msg.getMessage());
+        String receiveMsg = null;
+        String voiceSecond = "";
+
         if (msg.getMsgType() > 0) {
-            //只处理语音和文字
-            RxFileTool.saveFile(RxDataTool.bytes2InputStream(msg.getMessage()), picturePath);
+            //只处理语音和图片
+            try {
+                //图片，保存到本地
+                receiveMsg = getCacheDir() + "/media/" + UUID.randomUUID().toString();
+                //解密图片/语音
+                byte[] aes256Decode = AESUtil.Aes256Decode(msg.getMessage(), aesKeyDecode);
+                if (aes256Decode == null) return;
+                //把字节数组组成的图片或者语音保存到本地
+                File decodeFile = CommonUtil.getFileFromBytes(aes256Decode, receiveMsg);
+                if (!decodeFile.exists()) return;
+                //如果是语音信息，那么要把消息类型改成未读语音的类型
+                if (msg.getMsgType() == Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN) {
+                    msg.setMsgType(Constant.CHAT_MESSAGE_TYPE_VOICE_NEW);
+                    //获取声音长度
+                    int amrDuration = CommonUtil.getAmrDuration(decodeFile);
+                    if (amrDuration < 1) voiceSecond = "1";
+                    else voiceSecond = amrDuration + "";
+                }
+                //存储到数据库
+                saveMessageToDB(receiveMsg, msg.getMsgType(), RxTimeTool.date2String(dataStructure.getTime()), friendUser.getId(), false, voiceSecond);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        } else if (msg.getMsgType() == Constant.CHAT_MESSAGE_TYPE_TEXT){
+            //处理文字信息
+            try {
+                byte[] bytes = AESUtil.Aes256Decode(msg.getMessage(), aesKeyDecode);
+                if (bytes != null)
+                receiveMsg = new String(bytes, "UTF-8");
+            } catch (UnsupportedEncodingException e) {
+                e.printStackTrace();
+            }
+            //存储到数据库
+            if (receiveMsg != null) {
+                saveMessageToDB(receiveMsg, msg.getMsgType(), RxTimeTool.date2String(dataStructure.getTime()), friendUser.getId(), false, "");
+            }
         }
 
-        saveMessageToDB(receiveMsg, msg.getMsgType(), RxTimeTool.date2String(dataStructure.getTime()), picturePath, friendUser.getId(), false);
 
         if (ChatActivity.isFront) {
             try {
@@ -670,6 +707,7 @@ public class LoginHandlerService extends Service {
                 chatMessage.setChatType(1);
                 chatMessage.setMessage(receiveMsg);
                 chatMessage.setMessageType(msg.getMsgType());
+                chatMessage.setVoiceSecond(voiceSecond);
 
                 Message obtain = Message.obtain();
                 obtain.what = RECEIVE_NEW_MESSAGE;
@@ -679,14 +717,14 @@ public class LoginHandlerService extends Service {
                 e.printStackTrace();
             }
         } else {
-            //不在前台，弹出通知
+            //todo 不在前台，弹出通知
         }
     }
 
     /**
      * 保存消息到数据库
      */
-    public void saveMessageToDB(String msg, Integer msgType, String date, String picturePath, String userID, Boolean isSend) {
+    public void saveMessageToDB(String msg, Integer msgType, String date, String userID, Boolean isSend, String voiceSecond) {
         //把消息都保存到数据库
         ChatListOpenHelper chatListOpenHelper = new ChatListOpenHelper(getApplicationContext(), Constant.CHAT_LIST_DB_NAME, null, 1);
         //新建一个数据库的连接
@@ -696,11 +734,7 @@ public class LoginHandlerService extends Service {
         ContentValues message = new ContentValues();
         message.put("id", UUID.randomUUID().toString());
         message.put("user_id", userID);
-        if (msgType > 0) {
-            message.put("message", picturePath);
-        } else {
-            message.put("message", msg);
-        }
+        message.put("message", msg);
         message.put("time", date);
         if (isSend) {
             //属于发送
@@ -709,6 +743,7 @@ public class LoginHandlerService extends Service {
             message.put("chat_type", 1);
         }
         message.put("message_type", msgType);
+        message.put("voice_second", voiceSecond);
         readableDatabase.insert("chat_message", null, message);
 
         //设置事务标志为成功，当结束事务时就会提交事务
