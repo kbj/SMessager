@@ -253,7 +253,8 @@ public class MainActivity extends AppCompatActivity {
      */
     private void getFriendsList() {
         //请求
-        mLoginHandlerService.sendMessage(Constant.SERVER_ID, "", Constant.MESSAGE_TYPE_GET_FRIENDS_LIST, Constant.MODEL_TYPE_ACCOUNT, 0);
+        mLoginHandlerService.sendMessage(Constant.SERVER_ID, "", -1,
+                Constant.MESSAGE_TYPE_GET_FRIENDS_LIST, Constant.MODEL_TYPE_ACCOUNT, 0, new Date());
     }
 
     @Override

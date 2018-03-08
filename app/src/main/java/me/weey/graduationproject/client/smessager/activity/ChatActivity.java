@@ -8,6 +8,8 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.AnimationDrawable;
 import android.graphics.drawable.Drawable;
@@ -41,6 +43,7 @@ import com.alibaba.fastjson.TypeReference;
 import com.vondear.rxtools.RxDataTool;
 import com.vondear.rxtools.RxEncodeTool;
 import com.vondear.rxtools.RxFileTool;
+import com.vondear.rxtools.RxImageTool;
 import com.vondear.rxtools.RxPhotoTool;
 import com.vondear.rxtools.RxPictureTool;
 import com.vondear.rxtools.RxTimeTool;
@@ -335,42 +338,43 @@ public class ChatActivity extends AppCompatActivity {
      */
     private void sendVoice(final float seconds, final String filePath) {
         //获取当前时间
-        final String time = RxTimeTool.date2String(new Date());
+        final Date time = new Date();
+        //生成消息的ID
+        final String msgID = UUID.randomUUID().toString();
         new Thread() {
             @Override
             public void run() {
                 //将语音文件转成字节数组
                 if (!RxFileTool.isFileExists(filePath)) return;
-                try {
-                    //获取AES密码
-                    String aesKey = Constant.getAesKeyMapInstant().get(mFriendList.getId());
-                    FileInputStream inputStream = new FileInputStream(filePath);
-                    byte[] voiceByte = RxDataTool.inputStream2Bytes(inputStream);
-                    //加密数据
-                    byte[] aes256Encode = AESUtil.Aes256Encode(voiceByte, RxEncodeTool.base64Decode(aesKey));
-                    //使用Msg来包装内容
-                    Msg msg = new Msg();
-                    msg.setMsgType(Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN);
-                    msg.setMessage(aes256Encode);
-                    //调用Service发送消息
-                    mLoginHandlerService.sendMessage(mFriendList.getId(), JSON.toJSONString(msg),
-                            Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 7);
-                    //保存到数据库
-                    mLoginHandlerService.saveMessageToDB(filePath,
-                            msg.getMsgType(), time, mFriendList.getId(), true, ((int)seconds)+"");
-                } catch (FileNotFoundException e) {
-                    e.printStackTrace();
-                }
+                /*//获取AES密码
+                String aesKey = Constant.getAesKeyMapInstant().get(mFriendList.getId());
+                FileInputStream inputStream = new FileInputStream(filePath);
+                byte[] voiceByte = RxDataTool.inputStream2Bytes(inputStream);
+                //加密数据
+                byte[] aes256Encode = AESUtil.Aes256Encode(voiceByte, RxEncodeTool.base64Decode(aesKey));
+                //使用Msg来包装内容
+                Msg msg = new Msg();
+                msg.setMsgType(Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN);
+                msg.setMessage(aes256Encode);*/
+                //调用Service发送消息
+                mLoginHandlerService.sendMessage(mFriendList.getId(), filePath,
+                        Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN,
+                        Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 7,
+                        time);
+                //保存到数据库
+                mLoginHandlerService.saveMessageToDB(msgID, filePath,
+                        Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN, RxTimeTool.date2String(time),
+                        mFriendList.getId(), true, ((int)seconds)+"");
             }
         }.start();
 
         //封装ChatMessage新增到RecyclerView里面
         ChatMessage chatMessage = new ChatMessage();
-        chatMessage.setId(UUID.randomUUID().toString());
+        chatMessage.setId(msgID);
         chatMessage.setMessageType(Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN);
         chatMessage.setMessage(filePath);
         chatMessage.setChatType(Constant.CHAT_TYPE_SEND);
-        chatMessage.setTime(time);
+        chatMessage.setTime(RxTimeTool.date2String(time));
         if (seconds < 1) {
             //小于1秒的统一都设置成1
             chatMessage.setVoiceSecond("1");
@@ -419,10 +423,22 @@ public class ChatActivity extends AppCompatActivity {
      */
     @OnClick(R.id.iv_insert_photo)
     public void sendImage(View view) {
-        Intent intent = new Intent();
-        intent.setAction(Intent.ACTION_GET_CONTENT);
-        intent.setType("image/*");
-        startActivityForResult(Intent.createChooser(intent, "Select Picture"),5002);
+        MPermissionUtils.requestPermissionsResult(ChatActivity.this, Constant.PERMISSION_READ_EXTERNAL_STORAGE,
+                new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, new MPermissionUtils.OnPermissionListener() {
+                    @Override
+                    public void onPermissionGranted() {
+                        Intent intent = new Intent();
+                        intent.setAction(Intent.ACTION_GET_CONTENT);
+                        intent.setType("image/*");
+                        startActivityForResult(Intent.createChooser(intent, "Select Picture"),5002);
+                    }
+
+                    @Override
+                    public void onPermissionDenied() {
+                        //当权限拒绝的时候
+                        MPermissionUtils.showTipsDialog(ChatActivity.this);
+                    }
+                });
     }
 
     /**
@@ -447,9 +463,52 @@ public class ChatActivity extends AppCompatActivity {
     /**
      * 根据传来的要发送的图片文本地址发送图片
      */
-    private void sendImageMessage(String imageAbsolutePath) {
-        //需要对原图压缩80%后存到media文件夹里面
+    private void sendImageMessage(final String imageAbsolutePath) {
+        final Date date = new Date();
+        new Thread(){
+            @Override
+            public void run() {
+                //需要对原图压缩80%后存到media文件夹里面
+                Bitmap bitmap = BitmapFactory.decodeFile(imageAbsolutePath);
+                if (bitmap == null || (bitmap.getHeight() == 0 && bitmap.getWidth() == 0)) return;
+                //80%压缩
+                Bitmap compressByQuality = RxImageTool.compressByQuality(bitmap, 80);
+                if (compressByQuality == null || (compressByQuality.getHeight() == 0 && compressByQuality.getWidth() == 0)) {
+                    return;
+                }
+                //保存到缓存目录
+                String compressPath = getCacheDir() + "/media/" + UUID.randomUUID().toString();
+                File file = new File(compressPath);
+                if (!file.getParentFile().exists()) {
+                    //不存在的话要创建目录
+                    file.getParentFile().mkdirs();
+                }
+                RxImageTool.save(compressByQuality, compressPath, Bitmap.CompressFormat.JPEG);
+                //传递消息给服务发送消息
+                mLoginHandlerService.sendMessage(mFriendList.getId(), compressPath, Constant.CHAT_MESSAGE_TYPE_IMAGE, Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 7, date);
 
+                final String msgID = UUID.randomUUID().toString();
+                //保存到数据库
+                mLoginHandlerService.saveMessageToDB(msgID, compressPath, Constant.CHAT_MESSAGE_TYPE_IMAGE, RxTimeTool.date2String(date), mFriendList.getId(), true, imageAbsolutePath);
+
+                //显示到RecyclerView里面
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        ChatMessage chatMessage = new ChatMessage();
+                        chatMessage.setId(msgID);
+                        chatMessage.setUserId(mFriendList.getId());
+                        chatMessage.setTime(RxTimeTool.date2String(date));
+                        chatMessage.setChatType(Constant.CHAT_TYPE_SEND);
+                        chatMessage.setMessageType(Constant.CHAT_MESSAGE_TYPE_IMAGE);
+                        chatMessage.setMessage(imageAbsolutePath);
+
+                        mChatAdapter.addMessage(chatMessage);
+                    }
+                });
+
+            }
+        }.start();
     }
 
     /**
@@ -523,35 +582,38 @@ public class ChatActivity extends AppCompatActivity {
     public void sendMsg() {
         //获取要发送的内容
         final String inputMsg = mChatInputMessage.getText().toString().trim();
-        final String time = RxTimeTool.date2String(new Date());
+        final Date time = new Date();
         if (TextUtils.isEmpty(inputMsg)) return;
+        //生成消息的ID
+        final String msgID = UUID.randomUUID().toString();
         new Thread(){
             @Override
             public void run() {
-                try {
-                    //加密
-                    String aesKey = Constant.getAesKeyMapInstant().get(mFriendList.getId());
-                    byte[] aes256Encode = AESUtil.Aes256Encode(inputMsg.getBytes("UTF-8"), RxEncodeTool.base64Decode(aesKey));
-                    //发送信息
-                    Msg msg = new Msg();
-                    msg.setMessage(aes256Encode);
-                    msg.setMsgType(Constant.CHAT_MESSAGE_TYPE_TEXT);
-                    mLoginHandlerService.sendMessage(mFriendList.getId(), JSON.toJSONString(msg), Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 7);
-                    //保存到数据库 todo:先暂时写成空
-                    mLoginHandlerService.saveMessageToDB(inputMsg, Constant.CHAT_MESSAGE_TYPE_TEXT, time, mFriendList.getId(), true, "");
-                } catch (UnsupportedEncodingException e) {
-                    e.printStackTrace();
-                }
+                /* //加密
+                 String aesKey = Constant.getAesKeyMapInstant().get(mFriendList.getId());
+                 byte[] aes256Encode = AESUtil.Aes256Encode(inputMsg.getBytes("UTF-8"), RxEncodeTool.base64Decode(aesKey));
+                 //发送信息
+                 Msg msg = new Msg();
+                 msg.setMessage(aes256Encode);
+                 msg.setMsgType(Constant.CHAT_MESSAGE_TYPE_TEXT);*/
+                mLoginHandlerService.sendMessage(mFriendList.getId(), inputMsg,
+                        Constant.CHAT_MESSAGE_TYPE_TEXT,
+                        Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 7,
+                        time);
+                //保存到数据库 todo:先暂时写成空
+                mLoginHandlerService.saveMessageToDB(msgID, inputMsg,
+                        Constant.CHAT_MESSAGE_TYPE_TEXT, RxTimeTool.date2String(time), mFriendList.getId(),
+                        true, "");
             }
         }.start();
 
         //加入到RecyclerView中 todo
         ChatMessage chatMessage = new ChatMessage();
-        chatMessage.setId(UUID.randomUUID().toString());
+        chatMessage.setId(msgID);
         chatMessage.setMessageType(Constant.CHAT_MESSAGE_TYPE_TEXT);
         chatMessage.setMessage(inputMsg);
         chatMessage.setChatType(Constant.CHAT_TYPE_SEND);
-        chatMessage.setTime(time);
+        chatMessage.setTime(RxTimeTool.date2String(time));
         chatMessage.setUserId(mFriendList.getId());
 
         mChatAdapter.addMessage(chatMessage);

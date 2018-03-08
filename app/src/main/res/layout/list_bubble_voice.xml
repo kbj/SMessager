@@ -65,6 +65,7 @@
                     android:layout_gravity="end|bottom"
                     android:layout_marginStart="25dp"
                     android:textSize="12sp"
+                    android:textColor="@color/gray"
                     android:text="16:39"/>
             </LinearLayout>
         </com.ruochuan.bubblelayout.BubbleLayout>
@@ -138,6 +139,7 @@
                     android:layout_gravity="bottom|end"
                     android:layout_marginStart="5dp"
                     android:textSize="12sp"
+                    android:textColor="@color/gray"
                     android:text="16:00"/>
             </LinearLayout>
         </com.ruochuan.bubblelayout.BubbleLayout>

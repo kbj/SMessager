@@ -66,6 +66,11 @@ public class Constant {
     public static final int PERMISSION_RECORD_AUDIO = 2001;
 
     /**
+     * 获取外部存储
+     */
+    public static final int PERMISSION_READ_EXTERNAL_STORAGE = 2002;
+
+    /**
      * --------------------------------------------------------------
      * |--------------------Socket中的ModelType----------------------|
      * --------------------------------------------------------------

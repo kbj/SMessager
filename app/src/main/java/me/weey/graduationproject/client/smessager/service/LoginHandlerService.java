@@ -355,7 +355,9 @@ public class LoginHandlerService extends Service {
         if (publicKey == null || privateKey == null) return;
 
         //发送公钥给服务器
-        sendMessage(friendUser.getId(), RxEncodeTool.base64Encode2String(publicKey.getEncoded()), Constant.MESSAGE_TYPE_SIGNATURE, Constant.MODEL_TYPE_CHAT, 2);
+        sendMessage(friendUser.getId(), RxEncodeTool.base64Encode2String(publicKey.getEncoded()),
+                -1, Constant.MESSAGE_TYPE_SIGNATURE, Constant.MODEL_TYPE_CHAT,
+                2, new Date());
     }
 
     /**
@@ -479,7 +481,7 @@ public class LoginHandlerService extends Service {
             map.put("sigA", signature);
             map.put("sigRandomA", signatureRandom);
 
-            sendMessage(friendUser.getId(), JSON.toJSONString(map), Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 3);
+            sendMessage(friendUser.getId(), JSON.toJSONString(map), -1, Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 3, new Date());
         } catch (NoSuchAlgorithmException | InvalidKeySpecException | SignatureException | InvalidKeyException | UnsupportedEncodingException e) {
             e.printStackTrace();
             try {
@@ -536,7 +538,7 @@ public class LoginHandlerService extends Service {
                     //用publicKeyA对sigRandomA进行加密
                     String encryptionMsg = ECDHUtil.encryption(sigRandomA.getBytes("UTF-8"), publicKeyA, null);
                     //发送消息
-                    sendMessage(friendUser.getId(), encryptionMsg, Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 4);
+                    sendMessage(friendUser.getId(), encryptionMsg, -1, Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 4, new Date());
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -554,7 +556,7 @@ public class LoginHandlerService extends Service {
                             //加密
                             try {
                                 String encryption = ECDHUtil.encryption(aes256Key, bPublicKey, null);
-                                sendMessage(friendUser.getId(), encryption, Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 6);
+                                sendMessage(friendUser.getId(), encryption, -1, Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 6, new Date());
                                 Constant.getProcessMapInstant().put(friendUser.getId(), 6);
                                 //给Activity发送消息，建立连接成功！
                                 Message obtain = Message.obtain();
@@ -658,6 +660,9 @@ public class LoginHandlerService extends Service {
         String receiveMsg = null;
         String voiceSecond = "";
 
+        //生成消息的ID
+        String msgID = UUID.randomUUID().toString();
+
         if (msg.getMsgType() > 0) {
             //只处理语音和图片
             try {
@@ -678,7 +683,7 @@ public class LoginHandlerService extends Service {
                     else voiceSecond = amrDuration + "";
                 }
                 //存储到数据库
-                saveMessageToDB(receiveMsg, msg.getMsgType(), RxTimeTool.date2String(dataStructure.getTime()), friendUser.getId(), false, voiceSecond);
+                saveMessageToDB(msgID, receiveMsg, msg.getMsgType(), RxTimeTool.date2String(dataStructure.getTime()), friendUser.getId(), false, voiceSecond);
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -693,7 +698,7 @@ public class LoginHandlerService extends Service {
             }
             //存储到数据库
             if (receiveMsg != null) {
-                saveMessageToDB(receiveMsg, msg.getMsgType(), RxTimeTool.date2String(dataStructure.getTime()), friendUser.getId(), false, "");
+                saveMessageToDB(msgID, receiveMsg, msg.getMsgType(), RxTimeTool.date2String(dataStructure.getTime()), friendUser.getId(), false, "");
             }
         }
 
@@ -704,7 +709,7 @@ public class LoginHandlerService extends Service {
                 ChatMessage chatMessage = new ChatMessage();
                 chatMessage.setTime(RxTimeTool.date2String(dataStructure.getTime()));
                 chatMessage.setUserId(friendUser.getId());
-                chatMessage.setChatType(1);
+                chatMessage.setChatType(Constant.CHAT_TYPE_RECEIVE);
                 chatMessage.setMessage(receiveMsg);
                 chatMessage.setMessageType(msg.getMsgType());
                 chatMessage.setVoiceSecond(voiceSecond);
@@ -724,7 +729,7 @@ public class LoginHandlerService extends Service {
     /**
      * 保存消息到数据库
      */
-    public void saveMessageToDB(String msg, Integer msgType, String date, String userID, Boolean isSend, String voiceSecond) {
+    public void saveMessageToDB(String msgID, String msg, Integer msgType, String date, String userID, Boolean isSend, String voiceSecond) {
         //把消息都保存到数据库
         ChatListOpenHelper chatListOpenHelper = new ChatListOpenHelper(getApplicationContext(), Constant.CHAT_LIST_DB_NAME, null, 1);
         //新建一个数据库的连接
@@ -732,15 +737,15 @@ public class LoginHandlerService extends Service {
         //启用事务
         readableDatabase.beginTransaction();
         ContentValues message = new ContentValues();
-        message.put("id", UUID.randomUUID().toString());
+        message.put("id", msgID);
         message.put("user_id", userID);
         message.put("message", msg);
         message.put("time", date);
         if (isSend) {
             //属于发送
-            message.put("chat_type", 0);
+            message.put("chat_type", Constant.CHAT_TYPE_SEND);
         } else {
-            message.put("chat_type", 1);
+            message.put("chat_type", Constant.CHAT_TYPE_RECEIVE);
         }
         message.put("message_type", msgType);
         message.put("voice_second", voiceSecond);
@@ -758,20 +763,64 @@ public class LoginHandlerService extends Service {
 
     /**
      * 暴露外部接口给Activity调用发送请求
+     * @param toID                  目标对象的ID
+     * @param message               消息内容，如果是文本消息的话就是正文内容，如果是语音或者图片的话存放语音的路径，图片的话存放压缩后的路径
+     * @param chatMessageType       消息的类型，是文本消息、语音消息、图片消息   具体以Constant变量里面定义的为准
+     * @param messageType           最外一层外包的那层的消息类型，是请求服务器获取在线用户数还是发送给其他用户的数据
+     * @param modelType             Constant的ModelType
+     * @param process               当前消息的加密流程
      */
-    public void sendMessage(String toID, String message, int messageType, int modelType, int process) {
-        DataStructure dataStructure = new DataStructure();
-        dataStructure.setFromId(mMyUser.getId());
-        dataStructure.setToID(toID);
-        dataStructure.setMessage(message);
-        dataStructure.setMessageType(messageType);
-        dataStructure.setTime(new Date());
-        dataStructure.setModelType(modelType);
-        dataStructure.setProcess(process);
-        if (mLoginSocket == null) {
-            return;
+    public void sendMessage(String toID, String message, int chatMessageType,
+                            int messageType, int modelType, int process,
+                            Date date) {
+        try {
+            if (process == 7) {
+                //获取AES的密钥
+                String aesKey = Constant.getAesKeyMapInstant().get(toID);
+                if (chatMessageType != -1 && TextUtils.isEmpty(aesKey)) return;
+                //封装Msg
+                Msg msg = new Msg();
+                msg.setMsgType(chatMessageType);
+                byte[] encode = null;
+                //判断是否是文本消息
+                switch (chatMessageType) {
+                    case Constant.CHAT_MESSAGE_TYPE_TEXT:
+                        //是文本消息，直接对文本加密
+                        encode = AESUtil.Aes256Encode(message.getBytes("UTF-8"), RxEncodeTool.base64Decode(aesKey));
+                        msg.setMessage(encode);
+                        break;
+                    case Constant.CHAT_MESSAGE_TYPE_IMAGE:
+                    case Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN:
+                    case Constant.CHAT_MESSAGE_TYPE_VOICE_NEW:
+                        //不是文本消息
+                        File file = new File(message);
+                        if (!file.exists()) return;
+                        //把文件转为Byte数组
+                        byte[] fileBytes = CommonUtil.getFileBytes(file);
+                        if (fileBytes == null) return;
+                        //加密信息
+                        encode = AESUtil.Aes256Encode(fileBytes, RxEncodeTool.base64Decode(aesKey));
+                        msg.setMessage(encode);
+                }
+                message = JSON.toJSONString(msg);
+            }
+            //封装最外层的消息结构
+            DataStructure dataStructure = new DataStructure();
+            dataStructure.setFromId(mMyUser.getId());
+            dataStructure.setToID(toID);
+            dataStructure.setMessage(message);
+            dataStructure.setMessageType(messageType);
+            dataStructure.setTime(date);
+            dataStructure.setModelType(modelType);
+            dataStructure.setProcess(process);
+            if (mLoginSocket == null) {
+                return;
+            }
+            mLoginSocket.send(JSON.toJSONString(dataStructure));
+
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-        mLoginSocket.send(JSON.toJSONString(dataStructure));
     }
 
     /**
@@ -779,7 +828,7 @@ public class LoginHandlerService extends Service {
      * @param friendUser 对应好友的对象
      */
     public void startChatProcess(User friendUser) {
-        sendMessage(friendUser.getId(), "", Constant.MESSAGE_TYPE_IS_ONLINE, Constant.MODEL_TYPE_CHAT, 1);
+        sendMessage(friendUser.getId(), "", -1, Constant.MESSAGE_TYPE_IS_ONLINE, Constant.MODEL_TYPE_CHAT, 1, new Date());
 
         //取出当前用户的信息
         if (mMyUser == null)

@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.graphics.drawable.AnimationDrawable;
 import android.support.v7.widget.RecyclerView;
+import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -15,6 +16,7 @@ import android.widget.TextView;
 import com.ruochuan.bubblelayout.BubbleLayout;
 import com.vondear.rxtools.RxTimeTool;
 
+import java.io.File;
 import java.util.Date;
 import java.util.List;
 
@@ -77,6 +79,11 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             View view = inflater.inflate(R.layout.list_bubble_voice, parent, false);
             //返回holder
             return new VoiceMessageViewHolder(view);
+        } else if (viewType == MESSAGE_TYPE.PICTURE.ordinal()) {
+            //图像类型
+            View view = inflater.inflate(R.layout.list_bubble_image, parent, false);
+            //返回Holder
+            return new ImageMessageViewHolder(view);
         }
         return null;
     }
@@ -99,7 +106,30 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 break;
             case Constant.CHAT_MESSAGE_TYPE_IMAGE:
                 //图片信息
+                showImage((ImageMessageViewHolder) holder, message);
                 break;
+        }
+    }
+
+    /**
+     * 对图片类型的消息的显示
+     */
+    private void showImage(ImageMessageViewHolder holder, ChatMessage message) {
+        //判断消息收到还是发送
+        if (message.getChatType() == Constant.CHAT_TYPE_SEND) {
+            //发送的消息
+            holder.mReceiveMsg.setVisibility(View.GONE);
+            holder.mSendMsg.setVisibility(View.VISIBLE);
+            setAvatar(holder.mSendAvatar, mMyUser);
+            setTime(holder.mSendImageTime, message.getTime());
+            setImageMessage(message.getMessage(), message.getVoiceSecond(), holder.mSendImage);
+        } else if (message.getChatType() == Constant.CHAT_TYPE_RECEIVE) {
+            //接收的消息
+            holder.mReceiveMsg.setVisibility(View.VISIBLE);
+            holder.mSendMsg.setVisibility(View.GONE);
+            setAvatar(holder.mReceiveAvatar, mMyUser);
+            setTime(holder.mReceiveImageTime, message.getTime());
+            setImageMessage(message.getMessage(), message.getVoiceSecond(), holder.mReceiveImage);
         }
     }
 
@@ -188,6 +218,22 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         } else if (year.equals(thatYear) && month.equals(thatMonth) && day.equals(thatDay)) {
             time.setText(RxTimeTool.simpleDateFormat("hh:mm", date));
         }
+    }
+
+    /**
+     * 对图片消息的显示
+     * @param message           压缩图的缓存地址
+     * @param voiceSecond       原图的路径（如果没有原图就为空）
+     * @param mSendImage        显示图片的控件
+     */
+    private void setImageMessage(String message, String voiceSecond, ImageView mSendImage) {
+        if (mSendImage == null) return;
+        //对输入值的校验
+        String loadUrl = TextUtils.isEmpty(voiceSecond) ? message : voiceSecond;
+        File img = new File(loadUrl);
+        if (!img.exists()) return;
+        //加载图片
+        GlideApp.with(mContext).load(img).override(300, 300).into(mSendImage);
     }
 
     /**
@@ -301,7 +347,40 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
     }
 
-    public static interface onClickBubbleListener {
+    /**
+     * 图片消息的ViewHolder
+     */
+    class ImageMessageViewHolder extends RecyclerView.ViewHolder {
+
+        @BindView(R.id.rv_chat_receive_image) RelativeLayout mReceiveMsg;
+        @BindView(R.id.iv_receive_image_avatar) ImageView mReceiveAvatar;
+        @BindView(R.id.iv_chat_message_receive_image) ImageView mReceiveImage;
+        @BindView(R.id.tv_chat_message_receive_image_time) TextView mReceiveImageTime;
+
+        @BindView(R.id.rv_chat_send_image) RelativeLayout mSendMsg;
+        @BindView(R.id.iv_send_image_avatar) ImageView mSendAvatar;
+        @BindView(R.id.iv_chat_message_send_image) ImageView mSendImage;
+        @BindView(R.id.tv_chat_message_send_text_time) TextView mSendImageTime;
+
+        public ImageMessageViewHolder(View itemView) {
+            super(itemView);
+            //绑定UI
+            ButterKnife.bind(this, itemView);
+        }
+
+        /**
+         * 缩略图的点击事件
+         */
+        @OnClick({R.id.iv_chat_message_receive_image, R.id.iv_chat_message_send_image})
+        public void clickImage(View imageView) {
+            onClickImageListener.onClick(imageView, getAdapterPosition());
+        }
+    }
+
+    /**
+     * 语音消息的气泡点击事件
+     */
+    public interface onClickBubbleListener {
         void onClick(View view, int position);
     }
 
@@ -309,5 +388,18 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     public void setBubbleClickListener(onClickBubbleListener bubbleClickListener) {
         this.bubbleClickListener = bubbleClickListener;
+    }
+
+    /**
+     * 图片消息图片的点击事件
+     */
+    public interface onClickImageListener {
+        void onClick(View view, int position);
+    }
+
+    private onClickImageListener onClickImageListener;
+
+    public void setImageClickListener(onClickImageListener onClickImageListener) {
+        this.onClickImageListener = onClickImageListener;
     }
 }
