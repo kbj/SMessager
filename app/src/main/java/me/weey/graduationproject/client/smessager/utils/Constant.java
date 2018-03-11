@@ -15,8 +15,9 @@ public class Constant {
     /**
      * 服务端的地址
      */
-//    public static final String SERVER_ADDRESS = "http://192.168.157.1:8080/";
-    public static final String SERVER_ADDRESS = "http://kpw.free.ngrok.cc/";
+    public static final String SERVER_ADDRESS = "http://192.168.157.1:8080/";
+//    public static final String SERVER_ADDRESS = "http://kpw.free.ngrok.cc/";
+
 
     /**
      * 服务器公钥，先暂时写死

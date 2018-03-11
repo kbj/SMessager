@@ -241,25 +241,6 @@ public class FileSaveUtil {
     }
 
     /**
-     * 把文件转换成base64
-     *
-     * @param path
-     * @return
-     */
-    public static String encodeBase64File(String path) throws Exception {
-        byte[] videoBytes;
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        @SuppressWarnings("resource")
-        FileInputStream fis = new FileInputStream(new File(path));
-        byte[] buf = new byte[1024];
-        int n;
-        while (-1 != (n = fis.read(buf)))
-            baos.write(buf, 0, n);
-        videoBytes = baos.toByteArray();
-        return Base64.encodeToString(videoBytes, Base64.NO_WRAP);
-    }
-
-    /**
      * 根据相册媒体库路径转换成sd卡路径
      *
      * @param context

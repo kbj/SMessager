@@ -3,11 +3,9 @@ package me.weey.graduationproject.client.smessager.service;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.ContentValues;
-import android.content.Context;
 import android.content.Intent;
 import android.database.sqlite.SQLiteDatabase;
 import android.graphics.BitmapFactory;
-import android.media.MediaMetadataRetriever;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.Message;
@@ -15,14 +13,13 @@ import android.os.Messenger;
 import android.os.RemoteException;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
+import android.util.Log;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
-import com.vondear.rxtools.RxDataTool;
 import com.vondear.rxtools.RxEncodeTool;
-import com.vondear.rxtools.RxEncryptTool;
-import com.vondear.rxtools.RxFileTool;
 import com.vondear.rxtools.RxTimeTool;
+import com.vondear.rxtools.view.RxToast;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,7 +28,6 @@ import java.lang.reflect.Type;
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SignatureException;
@@ -41,10 +37,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Random;
 import java.util.UUID;
-
-import javax.crypto.BadPaddingException;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 
 import me.weey.graduationproject.client.smessager.R;
 import me.weey.graduationproject.client.smessager.activity.ChatActivity;
@@ -57,11 +49,16 @@ import me.weey.graduationproject.client.smessager.sqlite.ChatListOpenHelper;
 import me.weey.graduationproject.client.smessager.utils.AESUtil;
 import me.weey.graduationproject.client.smessager.utils.CommonUtil;
 import me.weey.graduationproject.client.smessager.utils.Constant;
+import me.weey.graduationproject.client.smessager.utils.DownloadUtil;
 import me.weey.graduationproject.client.smessager.utils.ECDHUtil;
 import me.weey.graduationproject.client.smessager.utils.ECDSAUtil;
 import me.weey.graduationproject.client.smessager.utils.KeyUtil;
+import me.weey.graduationproject.client.smessager.utils.OkHttpManager;
 import me.weey.graduationproject.client.smessager.utils.SPUtil;
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
 import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.WebSocket;
 import okhttp3.WebSocketListener;
@@ -74,9 +71,13 @@ import okio.ByteString;
 
 public class LoginHandlerService extends Service {
 
+    private static final String TAG = "LoginHandlerService";
+
     //登录相关的常量
     public static final String LOGIN_ACTIVITY_HANDLER = "mainHandler";
     public static final String CHAT_ACTIVITY_HANDLER = "chatHandler";
+    public static final String UPLOAD_FILE_BROADCAST = "LoginHandlerService.UploadFile.Broadcast";
+    public static final int UPLOADING_PROCESS = 808080;
     public static final int ESTABLISH_CONNECTION_SUCCESS= 888880;
     public static final int RECEIVE_NEW_MESSAGE = 888881;
 
@@ -113,8 +114,10 @@ public class LoginHandlerService extends Service {
         }
 
         //取出当前用户的信息
-        if (mMyUser == null)
+        if (mMyUser == null) {
             mMyUser = JSON.parseObject(SPUtil.getString(getApplicationContext(), Constant.USER_INFO), User.class);
+            Log.i(TAG, "onStartCommand: 取到用户信息：");
+        }
 
         return super.onStartCommand(intent, flags, startId);
     }
@@ -138,6 +141,7 @@ public class LoginHandlerService extends Service {
                 return;
             } catch (RemoteException e) {
                 e.printStackTrace();
+                Log.e(TAG, "socketLogin: mMessager.send(obtain)执行失败！", e);
             }
         }
         if (TextUtils.isEmpty(dataStructure)) return;
@@ -164,8 +168,7 @@ public class LoginHandlerService extends Service {
             //接收到字符串类型的字符数据
             @Override
             public void onMessage(WebSocket webSocket, String text) {
-                System.out.println("client onMessage");
-                System.out.println("message:" + text);
+                Log.i(TAG, "onMessage: 接收到内容：" + text);
                 //收到信息，转成HttpResponse对象
                 HttpResponse httpResponse = JSON.parseObject(text, HttpResponse.class);
                 if (httpResponse == null) return;
@@ -181,6 +184,7 @@ public class LoginHandlerService extends Service {
                             mMessager.send(obtain);
                         } catch (RemoteException e) {
                             e.printStackTrace();
+                            Log.e(TAG, "onMessage: mMessager.send(obtain);失败！", e);
                         }
                         break;
                     case Constant.MESSAGE_TYPE_GET_FRIENDS_LIST:
@@ -279,6 +283,24 @@ public class LoginHandlerService extends Service {
     }
 
     /**
+     * 加密流程一：开始加密聊天的流程
+     * @param friendUser 对应好友的对象
+     */
+    public void startChatProcess(User friendUser) {
+        //更新好友对应的流程
+        Constant.getProcessMapInstant().put(friendUser.getId(), 1);
+
+        sendMessage(friendUser.getId(), "", -1,
+                Constant.MESSAGE_TYPE_IS_ONLINE, Constant.MODEL_TYPE_CHAT,
+                Constant.getProcessMapInstant().get(friendUser.getId()), new Date());
+
+        //取出当前用户的信息
+        if (mMyUser == null)
+            mMyUser = JSON.parseObject(SPUtil.getString(getApplicationContext(), Constant.USER_INFO), User.class);
+
+    }
+
+    /**
      * 加密流程一回应：处理对是否在线的回应
      */
     private void handleIsOnline(String message) {
@@ -357,7 +379,7 @@ public class LoginHandlerService extends Service {
         //发送公钥给服务器
         sendMessage(friendUser.getId(), RxEncodeTool.base64Encode2String(publicKey.getEncoded()),
                 -1, Constant.MESSAGE_TYPE_SIGNATURE, Constant.MODEL_TYPE_CHAT,
-                2, new Date());
+                Constant.getProcessMapInstant().get(friendUser.getId()), new Date());
     }
 
     /**
@@ -481,7 +503,9 @@ public class LoginHandlerService extends Service {
             map.put("sigA", signature);
             map.put("sigRandomA", signatureRandom);
 
-            sendMessage(friendUser.getId(), JSON.toJSONString(map), -1, Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 3, new Date());
+            sendMessage(friendUser.getId(), JSON.toJSONString(map), -1,
+                    Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT,
+                    Constant.getProcessMapInstant().get(friendUser.getId()), new Date());
         } catch (NoSuchAlgorithmException | InvalidKeySpecException | SignatureException | InvalidKeyException | UnsupportedEncodingException e) {
             e.printStackTrace();
             try {
@@ -538,7 +562,9 @@ public class LoginHandlerService extends Service {
                     //用publicKeyA对sigRandomA进行加密
                     String encryptionMsg = ECDHUtil.encryption(sigRandomA.getBytes("UTF-8"), publicKeyA, null);
                     //发送消息
-                    sendMessage(friendUser.getId(), encryptionMsg, -1, Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 4, new Date());
+                    sendMessage(friendUser.getId(), encryptionMsg, -1,
+                            Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT,
+                            4, new Date());
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -556,8 +582,8 @@ public class LoginHandlerService extends Service {
                             //加密
                             try {
                                 String encryption = ECDHUtil.encryption(aes256Key, bPublicKey, null);
-                                sendMessage(friendUser.getId(), encryption, -1, Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 6, new Date());
                                 Constant.getProcessMapInstant().put(friendUser.getId(), 6);
+                                sendMessage(friendUser.getId(), encryption, -1, Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 6, new Date());
                                 //给Activity发送消息，建立连接成功！
                                 Message obtain = Message.obtain();
                                 obtain.what = ESTABLISH_CONNECTION_SUCCESS;
@@ -657,61 +683,53 @@ public class LoginHandlerService extends Service {
         Msg msg = JSON.parseObject(dataStructure.getMessage(), Msg.class);
         if (msg == null) return;
 
-        String receiveMsg = null;
         String voiceSecond = "";
 
         //生成消息的ID
-        String msgID = UUID.randomUUID().toString();
+        String msgID = UUID.randomUUID().toString().replaceAll("-", "");
 
-        if (msg.getMsgType() > 0) {
-            //只处理语音和图片
-            try {
-                //图片，保存到本地
-                receiveMsg = getCacheDir() + "/media/" + UUID.randomUUID().toString();
-                //解密图片/语音
-                byte[] aes256Decode = AESUtil.Aes256Decode(msg.getMessage(), aesKeyDecode);
-                if (aes256Decode == null) return;
-                //把字节数组组成的图片或者语音保存到本地
-                File decodeFile = CommonUtil.getFileFromBytes(aes256Decode, receiveMsg);
-                if (!decodeFile.exists()) return;
-                //如果是语音信息，那么要把消息类型改成未读语音的类型
-                if (msg.getMsgType() == Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN) {
-                    msg.setMsgType(Constant.CHAT_MESSAGE_TYPE_VOICE_NEW);
-                    //获取声音长度
-                    int amrDuration = CommonUtil.getAmrDuration(decodeFile);
-                    if (amrDuration < 1) voiceSecond = "1";
-                    else voiceSecond = amrDuration + "";
-                }
+        try {
+            byte[] bytes = AESUtil.Aes256Decode(msg.getMessage(), aesKeyDecode);
+            if (bytes == null || bytes.length == 0) return;
+            String content = new String(bytes, "UTF-8");
+            if (TextUtils.isEmpty(content)) return;
+            //判断消息的类型
+            if (msg.getMsgType() > 0) {
+                //语音或者图片消息
+                Log.i(TAG, "handleReceiveMsg: 下载网址为：" + content);
+                //下载文件到本地
+                downloadFile(content, aesKeyDecode, msg.getMsgType(), RxTimeTool.date2String(dataStructure.getTime()), msgID, friendUser);
+            } else {
+                //文本消息
                 //存储到数据库
-                saveMessageToDB(msgID, receiveMsg, msg.getMsgType(), RxTimeTool.date2String(dataStructure.getTime()), friendUser.getId(), false, voiceSecond);
-            } catch (IOException e) {
-                e.printStackTrace();
+                saveMessageToDB(msgID, content, msg.getMsgType(), RxTimeTool.date2String(dataStructure.getTime()), friendUser.getId(), false, "");
+                //发送给Activity
+                addMsgToAdapter(RxTimeTool.date2String(dataStructure.getTime()), friendUser.getId(), msg.getMsgType(), content, voiceSecond, msgID);
             }
-        } else if (msg.getMsgType() == Constant.CHAT_MESSAGE_TYPE_TEXT){
-            //处理文字信息
-            try {
-                byte[] bytes = AESUtil.Aes256Decode(msg.getMessage(), aesKeyDecode);
-                if (bytes != null)
-                receiveMsg = new String(bytes, "UTF-8");
-            } catch (UnsupportedEncodingException e) {
-                e.printStackTrace();
-            }
-            //存储到数据库
-            if (receiveMsg != null) {
-                saveMessageToDB(msgID, receiveMsg, msg.getMsgType(), RxTimeTool.date2String(dataStructure.getTime()), friendUser.getId(), false, "");
-            }
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
         }
+    }
 
-
+    /**
+     * 往adapter里面新增新消息
+     * @param time              消息时间
+     * @param toID              对方的ID
+     * @param msgType           消息的类型
+     * @param receiveMsg        解密后的消息内容或者文件地址
+     * @param voiceSecond       语音消息的秒数
+     */
+    private void addMsgToAdapter(String time, String toID, int msgType, String receiveMsg, String voiceSecond, String id) {
         if (ChatActivity.isFront) {
             try {
                 //在前台，把消息发送给前台
                 ChatMessage chatMessage = new ChatMessage();
-                chatMessage.setTime(RxTimeTool.date2String(dataStructure.getTime()));
-                chatMessage.setUserId(friendUser.getId());
+                chatMessage.setId(id);
+                chatMessage.setTime(time);
+                chatMessage.setUserId(toID);
                 chatMessage.setChatType(Constant.CHAT_TYPE_RECEIVE);
                 chatMessage.setMessage(receiveMsg);
-                chatMessage.setMessageType(msg.getMsgType());
+                chatMessage.setMessageType(msgType);
                 chatMessage.setVoiceSecond(voiceSecond);
 
                 Message obtain = Message.obtain();
@@ -724,6 +742,84 @@ public class LoginHandlerService extends Service {
         } else {
             //todo 不在前台，弹出通知
         }
+    }
+
+    /**
+     * 下载相应的文件
+     */
+    private void downloadFile(String downloadURL, final byte[] aesKey, final int chatMessageType, final String time, final String msgID, final User friendUser) {
+        final File encryptFile = new File(getCacheDir() + "/media/" + downloadURL.substring(downloadURL.lastIndexOf("/") + 1));
+        if (!encryptFile.getParentFile().exists()) {
+            encryptFile.getParentFile().mkdirs();
+        }
+        //使用OkHttp下载
+        final String encryptName = UUID.randomUUID().toString().replaceAll("-", "");
+        OkHttpManager.download(downloadURL, getCacheDir() + "/media/", encryptName,
+                new OkHttpManager.ProgressListener() {
+                    @Override
+                    //下载的进度
+                    public void onProgress(long totalSize, long currSize, boolean done, int id) {
+                        if (done) {
+                            Log.i(TAG, "onProgress: 下载完毕！文件：" + id);
+                        } else {
+                            long percent = currSize / totalSize * 100;
+                            Log.i(TAG, "onProgress: 下载进度：" + percent + "%");
+                        }
+                    }
+                }, new OkHttpManager.ResultCallback() {
+                    @Override
+                    public void onCallBack(OkHttpManager.State state, String result) {
+                        if (state == OkHttpManager.State.SUCCESS) {
+                            try {
+                                //下载成功
+                                File encryptFile = new File(getCacheDir() + "/media/" + encryptName);
+                                if (!encryptFile.exists() || encryptFile.length() == 0) {
+                                    RxToast.error("下载失败！文件大小为0！！");
+                                    Log.e(TAG, "DownloadOnCallBack: 下载失败!");
+                                    return;
+                                }
+                                //存放如果是声音的秒数
+                                String voiceSecond = "";
+                                //载入内存解密
+                                byte[] encryptBytes = CommonUtil.getFileBytes(encryptFile);
+                                byte[] decodeFile = AESUtil.Aes256Decode(encryptBytes, aesKey);
+                                if (decodeFile == null || decodeFile.length == 0) {
+                                    Log.e(TAG, "onCallBack: 文件解密失败！");
+                                    return;
+                                }
+                                //保存到缓存目录
+                                String outPutPath = getCacheDir() + "/media/" + UUID.randomUUID().toString().replaceAll("-", "");
+                                File file = CommonUtil.getFileFromBytes(decodeFile, outPutPath);
+                                //确认文件存在后把加密前的文件删掉
+                                if (file.exists()) encryptFile.delete();
+                                //存放消息的类型
+                                int msgType = chatMessageType;
+                                //判断是图片还是语音
+                                if (chatMessageType == Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN) {
+                                    msgType = Constant.CHAT_MESSAGE_TYPE_VOICE_NEW;
+                                    //获取声音长度
+                                    int amrDuration = CommonUtil.getAmrDuration(file);
+                                    if (amrDuration < 1) voiceSecond = "1";
+                                    else voiceSecond = amrDuration + "";
+                                }
+                                //存储到数据库
+                                saveMessageToDB(msgID, file.getAbsolutePath(), msgType,
+                                        time, friendUser.getId(), false, voiceSecond);
+                                //发送给Activity
+                                addMsgToAdapter(time, friendUser.getId(), msgType, file.getAbsolutePath(), voiceSecond, msgID);
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                                Log.e(TAG, "onDownloadSuccess: 解密过程中出错了！", e);
+                            }
+                        } else if (state == OkHttpManager.State.FAILURE) {
+                            //下载失败
+                            Log.e(TAG, "onCallBack: 下载失败!信息：" + result);
+                        } else if (state == OkHttpManager.State.NETWORK_FAILURE) {
+                            //网络不通畅
+                            Log.e(TAG, "onCallBack: 网络连接超时，请检查网络连接。");
+                        }
+                    }
+                });
     }
 
     /**
@@ -781,26 +877,14 @@ public class LoginHandlerService extends Service {
                 //封装Msg
                 Msg msg = new Msg();
                 msg.setMsgType(chatMessageType);
-                byte[] encode = null;
-                //判断是否是文本消息
+                //判断消息类型
                 switch (chatMessageType) {
                     case Constant.CHAT_MESSAGE_TYPE_TEXT:
-                        //是文本消息，直接对文本加密
-                        encode = AESUtil.Aes256Encode(message.getBytes("UTF-8"), RxEncodeTool.base64Decode(aesKey));
-                        msg.setMessage(encode);
-                        break;
                     case Constant.CHAT_MESSAGE_TYPE_IMAGE:
                     case Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN:
                     case Constant.CHAT_MESSAGE_TYPE_VOICE_NEW:
-                        //不是文本消息
-                        File file = new File(message);
-                        if (!file.exists()) return;
-                        //把文件转为Byte数组
-                        byte[] fileBytes = CommonUtil.getFileBytes(file);
-                        if (fileBytes == null) return;
-                        //加密信息
-                        encode = AESUtil.Aes256Encode(fileBytes, RxEncodeTool.base64Decode(aesKey));
-                        msg.setMessage(encode);
+                        msg.setMessage(AESUtil.Aes256Encode(message.getBytes("UTF-8"), RxEncodeTool.base64Decode(aesKey)));
+                        break;
                 }
                 message = JSON.toJSONString(msg);
             }
@@ -820,23 +904,100 @@ public class LoginHandlerService extends Service {
 
         } catch (IOException e) {
             e.printStackTrace();
+            Log.e(TAG, "sendMessage: ", e);
         }
     }
 
     /**
-     * 加密流程一：开始加密聊天的流程
-     * @param friendUser 对应好友的对象
+     * 上传加密后的文件到服务器，服务器返回文件下载的地址
+     * @param filePath  文件地址
      */
-    public void startChatProcess(User friendUser) {
-        sendMessage(friendUser.getId(), "", -1, Constant.MESSAGE_TYPE_IS_ONLINE, Constant.MODEL_TYPE_CHAT, 1, new Date());
-
-        //取出当前用户的信息
-        if (mMyUser == null)
-            mMyUser = JSON.parseObject(SPUtil.getString(getApplicationContext(), Constant.USER_INFO), User.class);
-
-        //更新好友对应的流程
-        Constant.getProcessMapInstant().put(friendUser.getId(), 1);
+    public void uploadFile(String filePath, final String toID, final int chatMessageType,
+                            final int messageType, final int modelType, final int process, final Date date) {
+        //校验
+        final File file = new File(filePath);
+        if (!file.exists() || TextUtils.isEmpty(toID)) return;
+        Log.i(TAG, "收到文件" + filePath);
+        new Thread() {
+            @Override
+            public void run() {
+                try {
+                    //获取AES密钥
+                    String aesKey = Constant.getAesKeyMapInstant().get(toID);
+                    Log.i(TAG, "run: 上传文件，aes密钥：" + aesKey);
+                    byte[] fileBytes = CommonUtil.getFileBytes(file);
+                    //加密
+                    byte[] aes256Encode = AESUtil.Aes256Encode(fileBytes, RxEncodeTool.base64Decode(aesKey));
+                    //加密后的文件
+                    File encodeFile = CommonUtil.getFileFromBytes(aes256Encode, getCacheDir() + "/media/" + System.currentTimeMillis());
+                    Log.i(TAG, "文件加密成功！加密路径：" + encodeFile.getAbsolutePath());
+                    //构造参数对象
+                    HashMap<String, String> params = new HashMap<>();
+                    params.put("userID", toID);
+                    OkHttpManager.upload(Constant.SERVER_ADDRESS + "file/upload",
+                            new File[]{encodeFile}, new String[]{"file"}, params,
+                            new OkHttpManager.ProgressListener() {
+                                @Override
+                                //上传进度的回调
+                                public void onProgress(long totalSize, long currSize, boolean done, int id) {
+                                    if (done) {
+                                        Log.i(TAG, "编号" + id + " onProgress: 上传完毕！" + currSize + "/" + totalSize);
+                                    } else {
+                                        Log.i(TAG, "onProgress: 上传进度：" + currSize + "/" + totalSize);
+                                        sendUploadFileBroadcast(toID, UPLOADING_PROCESS, ((int) currSize / totalSize) + "",
+                                                chatMessageType, messageType, modelType, process, date);
+                                    }
+                                }
+                            }, new OkHttpManager.ResultCallback() {
+                                @Override
+                                //结果的回调
+                                public void onCallBack(OkHttpManager.State state, String result) {
+                                    if (state == OkHttpManager.State.SUCCESS) {
+                                        //上传成功
+                                        String url = JSON.parseObject(result, String.class);
+                                        sendMessage(toID, url, chatMessageType, messageType, modelType,
+                                                process, date);
+                                    } else if (state == OkHttpManager.State.FAILURE) {
+                                        //上传失败!
+                                        sendUploadFileBroadcast(toID, Constant.CODE_FAILURE, "上传失败！" + result,
+                                                chatMessageType, messageType, modelType, process, date);
+                                    } else if (state == OkHttpManager.State.NETWORK_FAILURE) {
+                                        //网络错误
+                                        sendUploadFileBroadcast(toID, Constant.CODE_FAILURE, "网络错误！请检查网络！" + result,
+                                                chatMessageType, messageType, modelType, process, date);
+                                    }
+                                    //删除加密文件
+                                    //encodeFile.delete();*/
+                                }
+                            });
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    Log.e(TAG, "uploadFile: 网络请求错误：" + e.getMessage(), e);
+                }
+            }
+        }.start();
     }
+
+    /**
+     * 发送跟上传文件相关的广播信息
+     * @param status    上传状态
+     * @param info      信息
+     */
+    private void sendUploadFileBroadcast(String toID, int status, String info, int chatMessageType,
+                                         int messageType, int modelType, int process, Date date) {
+        Intent intent = new Intent();
+        intent.setAction(UPLOAD_FILE_BROADCAST);
+        intent.putExtra("status", status);
+        intent.putExtra("info", info);
+        intent.putExtra("chatMessageType", chatMessageType);
+        intent.putExtra("messageType", messageType);
+        intent.putExtra("modelType", modelType);
+        intent.putExtra("process", process);
+        intent.putExtra("date", date);
+        intent.putExtra("toID", toID);
+        sendBroadcast(intent);
+    }
+
 
     /**
      * 回调函数

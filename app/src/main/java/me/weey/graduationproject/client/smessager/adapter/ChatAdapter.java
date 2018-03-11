@@ -216,7 +216,7 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         } else if (year.equals(thatYear) && month.equals(thatMonth) && !day.equals(thatDay)) {
             time.setText(RxTimeTool.simpleDateFormat("EEEE", date));
         } else if (year.equals(thatYear) && month.equals(thatMonth) && day.equals(thatDay)) {
-            time.setText(RxTimeTool.simpleDateFormat("hh:mm", date));
+            time.setText(RxTimeTool.simpleDateFormat("HH:mm", date));
         }
     }
 
@@ -288,6 +288,7 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     public void addMessage(ChatMessage chatMessage) {
         mChatMessages.add(chatMessage);
         notifyItemInserted(mChatMessages.size() - 1);
+
     }
 
 

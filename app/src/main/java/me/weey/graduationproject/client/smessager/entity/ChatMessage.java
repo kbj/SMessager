@@ -14,7 +14,7 @@ public class ChatMessage implements Serializable {
     private String time;            //消息产生的时间
     private int chatType;           //聊天的类型，0是发送，1是接收
     private int messageType;        //消息的类型，0是文本消息，1是图片消息，2是已读语音消息，3是未读语音消息
-    private String voiceSecond;    //如果是语音消息的话，语音消息的秒数，如果是发送图片的话存储原图的路径
+    private String voiceSecond;     //如果是语音消息的话，语音消息的秒数，如果是发送图片的话存储原图的路径
 
     public String getId() {
         return id;

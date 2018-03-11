@@ -2,9 +2,12 @@ package me.weey.graduationproject.client.smessager.activity;
 
 import android.Manifest;
 import android.app.ProgressDialog;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.ContentValues;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
@@ -55,9 +58,11 @@ import java.io.FileNotFoundException;
 import java.io.UnsupportedEncodingException;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Type;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.UUID;
 
 import butterknife.BindView;
@@ -72,6 +77,7 @@ import me.weey.graduationproject.client.smessager.glide.GlideApp;
 import me.weey.graduationproject.client.smessager.service.LoginHandlerService;
 import me.weey.graduationproject.client.smessager.sqlite.ChatListOpenHelper;
 import me.weey.graduationproject.client.smessager.utils.AESUtil;
+import me.weey.graduationproject.client.smessager.utils.CommonUtil;
 import me.weey.graduationproject.client.smessager.utils.Constant;
 import me.weey.graduationproject.client.smessager.utils.KeyBoardUtils;
 import me.weey.graduationproject.client.smessager.utils.MPermissionUtils;
@@ -86,6 +92,7 @@ import me.weey.graduationproject.client.smessager.widget.AudioRecordButton;
  */
 
 public class ChatActivity extends AppCompatActivity {
+    private static final String TAG = "ChatActivity";
     public static final String CHAT_INFO = "chat_info";
     private static final int BIND_SERVICE_SUCCESS = 5678;
 
@@ -109,6 +116,7 @@ public class ChatActivity extends AppCompatActivity {
     private ChatListOpenHelper chatListOpenHelper;
     private ChatAdapter mChatAdapter;
     private ArrayList<ChatMessage> mChatMessages;
+    private UploadFileBroadcast mUploadFileBroadcast;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -127,6 +135,10 @@ public class ChatActivity extends AppCompatActivity {
         initUser();
         //初始化UI
         initUI();
+        //初始化广播
+        mUploadFileBroadcast = new UploadFileBroadcast();
+        IntentFilter intentFilter = new IntentFilter(LoginHandlerService.UPLOAD_FILE_BROADCAST);
+        registerReceiver(mUploadFileBroadcast, intentFilter);
     }
 
 
@@ -204,11 +216,11 @@ public class ChatActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         //初始化RecycleView
-                        LinearLayoutManager layoutManager = new LinearLayoutManager(getApplicationContext());
+                        LinearLayoutManager mLayoutManager = new LinearLayoutManager(getApplicationContext());
                         //设置布局管理器
-                        mRecyclerViewChatMessage.setLayoutManager(layoutManager);
+                        mRecyclerViewChatMessage.setLayoutManager(mLayoutManager);
                         //设置为垂直布局，这也是默认的
-                        layoutManager.setOrientation(OrientationHelper.VERTICAL);
+                        mLayoutManager.setOrientation(OrientationHelper.VERTICAL);
                         //设置Adapter
                         mRecyclerViewChatMessage.setAdapter(mChatAdapter);
                         //设置增加或删除条目的动画
@@ -341,32 +353,22 @@ public class ChatActivity extends AppCompatActivity {
         final Date time = new Date();
         //生成消息的ID
         final String msgID = UUID.randomUUID().toString();
-        new Thread() {
-            @Override
-            public void run() {
-                //将语音文件转成字节数组
-                if (!RxFileTool.isFileExists(filePath)) return;
-                /*//获取AES密码
-                String aesKey = Constant.getAesKeyMapInstant().get(mFriendList.getId());
-                FileInputStream inputStream = new FileInputStream(filePath);
-                byte[] voiceByte = RxDataTool.inputStream2Bytes(inputStream);
-                //加密数据
-                byte[] aes256Encode = AESUtil.Aes256Encode(voiceByte, RxEncodeTool.base64Decode(aesKey));
-                //使用Msg来包装内容
-                Msg msg = new Msg();
-                msg.setMsgType(Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN);
-                msg.setMessage(aes256Encode);*/
-                //调用Service发送消息
-                mLoginHandlerService.sendMessage(mFriendList.getId(), filePath,
-                        Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN,
-                        Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 7,
-                        time);
-                //保存到数据库
-                mLoginHandlerService.saveMessageToDB(msgID, filePath,
-                        Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN, RxTimeTool.date2String(time),
-                        mFriendList.getId(), true, ((int)seconds)+"");
-            }
-        }.start();
+        //将语音文件转成字节数组
+        if (!RxFileTool.isFileExists(filePath)) return;
+        //计算秒数
+        String second = "";
+        if (seconds > 0 && seconds < 1) {
+            second = "1";
+        } else {
+            second = Math.round(Math.floor(seconds)) + "";
+        }
+        //调用Service发送消息
+        mLoginHandlerService.uploadFile(filePath, mFriendList.getId(), Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN,
+                Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 7, time);
+        //保存到数据库
+        mLoginHandlerService.saveMessageToDB(msgID, filePath,
+                Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN, RxTimeTool.date2String(time),
+                mFriendList.getId(), true, second);
 
         //封装ChatMessage新增到RecyclerView里面
         ChatMessage chatMessage = new ChatMessage();
@@ -375,16 +377,12 @@ public class ChatActivity extends AppCompatActivity {
         chatMessage.setMessage(filePath);
         chatMessage.setChatType(Constant.CHAT_TYPE_SEND);
         chatMessage.setTime(RxTimeTool.date2String(time));
-        if (seconds < 1) {
-            //小于1秒的统一都设置成1
-            chatMessage.setVoiceSecond("1");
-        } else {
-            //超过1秒的改为四舍五入整数
-            chatMessage.setVoiceSecond(Math.round(seconds)+"");
-        }
+        chatMessage.setVoiceSecond(second);
         chatMessage.setUserId(mFriendList.getId());
         //添加进Adapter
         mChatAdapter.addMessage(chatMessage);
+        //跳转到最新位置
+        mRecyclerViewChatMessage.scrollToPosition(mRecyclerViewChatMessage.getAdapter().getItemCount() - 1);
     }
 
     /**
@@ -472,7 +470,7 @@ public class ChatActivity extends AppCompatActivity {
                 Bitmap bitmap = BitmapFactory.decodeFile(imageAbsolutePath);
                 if (bitmap == null || (bitmap.getHeight() == 0 && bitmap.getWidth() == 0)) return;
                 //80%压缩
-                Bitmap compressByQuality = RxImageTool.compressByQuality(bitmap, 80);
+                Bitmap compressByQuality = RxImageTool.compressByQuality(bitmap, 90);
                 if (compressByQuality == null || (compressByQuality.getHeight() == 0 && compressByQuality.getWidth() == 0)) {
                     return;
                 }
@@ -485,7 +483,9 @@ public class ChatActivity extends AppCompatActivity {
                 }
                 RxImageTool.save(compressByQuality, compressPath, Bitmap.CompressFormat.JPEG);
                 //传递消息给服务发送消息
-                mLoginHandlerService.sendMessage(mFriendList.getId(), compressPath, Constant.CHAT_MESSAGE_TYPE_IMAGE, Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 7, date);
+                //mLoginHandlerService.sendMessage(mFriendList.getId(), compressPath, Constant.CHAT_MESSAGE_TYPE_IMAGE, Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 7, date);
+                mLoginHandlerService.uploadFile(compressPath, mFriendList.getId(), Constant.CHAT_MESSAGE_TYPE_IMAGE,
+                        Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 7, date);
 
                 final String msgID = UUID.randomUUID().toString();
                 //保存到数据库
@@ -502,8 +502,9 @@ public class ChatActivity extends AppCompatActivity {
                         chatMessage.setChatType(Constant.CHAT_TYPE_SEND);
                         chatMessage.setMessageType(Constant.CHAT_MESSAGE_TYPE_IMAGE);
                         chatMessage.setMessage(imageAbsolutePath);
-
                         mChatAdapter.addMessage(chatMessage);
+                        //跳转到最新位置
+                        mRecyclerViewChatMessage.scrollToPosition(mRecyclerViewChatMessage.getAdapter().getItemCount() - 1);
                     }
                 });
 
@@ -589,13 +590,6 @@ public class ChatActivity extends AppCompatActivity {
         new Thread(){
             @Override
             public void run() {
-                /* //加密
-                 String aesKey = Constant.getAesKeyMapInstant().get(mFriendList.getId());
-                 byte[] aes256Encode = AESUtil.Aes256Encode(inputMsg.getBytes("UTF-8"), RxEncodeTool.base64Decode(aesKey));
-                 //发送信息
-                 Msg msg = new Msg();
-                 msg.setMessage(aes256Encode);
-                 msg.setMsgType(Constant.CHAT_MESSAGE_TYPE_TEXT);*/
                 mLoginHandlerService.sendMessage(mFriendList.getId(), inputMsg,
                         Constant.CHAT_MESSAGE_TYPE_TEXT,
                         Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 7,
@@ -620,8 +614,44 @@ public class ChatActivity extends AppCompatActivity {
 
         //文本框回空
         mChatInputMessage.setText("");
+        //跳转到最新位置
+        mRecyclerViewChatMessage.scrollToPosition(mRecyclerViewChatMessage.getAdapter().getItemCount() - 1);
     }
 
+    /**
+     * 接收到广播后的处理
+     */
+    public class UploadFileBroadcast extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            //获取传递来的数据
+            Bundle bundle = intent.getExtras();
+            int statusCode = (int) bundle.get("status");
+            String info = (String) bundle.get("info");
+            String toID = bundle.getString("toID");
+            int chatMessageType = (int) bundle.get("chatMessageType");
+            int messageType = (int) bundle.get("messageType");
+            int modelType = (int) bundle.get("modelType");
+            int process = (int) bundle.get("process");
+            Date date = (Date) bundle.get("date");
+
+            //对statusCode进行判断
+            switch (statusCode) {
+                case Constant.CODE_FAILURE:
+                    //失败了
+                    RxToast.warning(info);
+                    break;
+                case Constant.CODE_SUCCESS:
+                    //上传成功了，就调用service方法发送
+
+                    break;
+                case LoginHandlerService.UPLOADING_PROCESS:
+                    //正在上传
+                    Log.i(TAG, "onReceive: 上传进度：" + info);
+                    break;
+            }
+        }
+    }
 
 
     private ServiceConnection mConnection = new ServiceConnection() {
@@ -654,6 +684,15 @@ public class ChatActivity extends AppCompatActivity {
         super.onDestroy();
         unbindService(mConnection);
         Constant.getProcessMapInstant().put(mFriendList.getId(), 0);
+        //注销广播
+        if (mUploadFileBroadcast != null) {
+            unregisterReceiver(mUploadFileBroadcast);
+        }
+    }
+
+    @Override
+    public void onBackPressed() {
+        super.onBackPressed();
     }
 
     @Override
@@ -703,11 +742,15 @@ public class ChatActivity extends AppCompatActivity {
                         chatActivity.mProgressDialog.dismiss();
                     }
                     RxToast.error("建立连接失败！信息：" + msg.obj);
+                    //跳转到最新位置
+                    chatActivity.mRecyclerViewChatMessage.smoothScrollToPosition(chatActivity.mRecyclerViewChatMessage.getAdapter().getItemCount() - 1);
                     break;
                 case LoginHandlerService.RECEIVE_NEW_MESSAGE:
                     //收到新的消息
                     ChatMessage chatMessage = (ChatMessage) msg.obj;
                     chatActivity.mChatAdapter.addMessage(chatMessage);
+                    //跳转到最新位置
+                    chatActivity.mRecyclerViewChatMessage.scrollToPosition(chatActivity.mRecyclerViewChatMessage.getAdapter().getItemCount() - 1);
                     break;
             }
         }
