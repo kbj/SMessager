@@ -231,4 +231,13 @@ public class Constant {
     public static ConcurrentHashMap<String, Integer> getfriendRandomMapInstant() {
         return friendRandomMap;
     }
+
+    /**
+     * 用Map存放对应好友的在线状态
+     */
+    private static final ConcurrentHashMap<String, String> onlineStatusRandomMap = new ConcurrentHashMap<String, String>();
+
+    public static ConcurrentHashMap<String, String> getonlineStatusRandomMapInstant() {
+        return onlineStatusRandomMap;
+    }
 }

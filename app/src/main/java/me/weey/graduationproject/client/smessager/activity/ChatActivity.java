@@ -17,8 +17,6 @@ import android.graphics.PorterDuff;
 import android.graphics.drawable.AnimationDrawable;
 import android.graphics.drawable.Drawable;
 import android.media.MediaPlayer;
-import android.net.Uri;
-import android.nfc.Tag;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -39,30 +37,23 @@ import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
-import com.vondear.rxtools.RxDataTool;
-import com.vondear.rxtools.RxEncodeTool;
 import com.vondear.rxtools.RxFileTool;
 import com.vondear.rxtools.RxImageTool;
 import com.vondear.rxtools.RxPhotoTool;
-import com.vondear.rxtools.RxPictureTool;
 import com.vondear.rxtools.RxTimeTool;
 import com.vondear.rxtools.view.RxToast;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.UnsupportedEncodingException;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Type;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.UUID;
 
 import butterknife.BindView;
@@ -71,13 +62,10 @@ import butterknife.OnClick;
 import me.weey.graduationproject.client.smessager.R;
 import me.weey.graduationproject.client.smessager.adapter.ChatAdapter;
 import me.weey.graduationproject.client.smessager.entity.ChatMessage;
-import me.weey.graduationproject.client.smessager.entity.Msg;
 import me.weey.graduationproject.client.smessager.entity.User;
 import me.weey.graduationproject.client.smessager.glide.GlideApp;
 import me.weey.graduationproject.client.smessager.service.LoginHandlerService;
 import me.weey.graduationproject.client.smessager.sqlite.ChatListOpenHelper;
-import me.weey.graduationproject.client.smessager.utils.AESUtil;
-import me.weey.graduationproject.client.smessager.utils.CommonUtil;
 import me.weey.graduationproject.client.smessager.utils.Constant;
 import me.weey.graduationproject.client.smessager.utils.KeyBoardUtils;
 import me.weey.graduationproject.client.smessager.utils.MPermissionUtils;
@@ -103,6 +91,7 @@ public class ChatActivity extends AppCompatActivity {
     @BindView(R.id.tb_chat) Toolbar mToolBar;
     @BindView(R.id.tv_chat_user_name) TextView mChatUserName;
     @BindView(R.id.tv_last_message_time) TextView mChatLastMessageTime;
+    @BindView(R.id.tv_last_message_label) TextView mChatLastMessageLabel;
     @BindView(R.id.rv_chat_message) RecyclerView mRecyclerViewChatMessage;
     @BindView(R.id.et_input_message) EditText mChatInputMessage;
     @BindView(R.id.iv_send_message) ImageView mSendMessage;
@@ -173,7 +162,6 @@ public class ChatActivity extends AppCompatActivity {
         mProgressDialog.setIndeterminate(false);
         mProgressDialog.setMessage("正在建立加密通信连接...");
         mProgressDialog.show();
-
 
         new Thread() {
             @Override
@@ -693,6 +681,7 @@ public class ChatActivity extends AppCompatActivity {
     @Override
     public void onBackPressed() {
         super.onBackPressed();
+        finish();
     }
 
     @Override
@@ -734,15 +723,20 @@ public class ChatActivity extends AppCompatActivity {
                     //建立连接成功
                     if (chatActivity.mProgressDialog != null) {
                         chatActivity.mProgressDialog.dismiss();
+                        //初始化TitleBar
+                        chatActivity.initTitleBar();
                     }
                     break;
                 case Constant.CODE_PROCESS_FAILURE:
                     //建立连接失败
                     if (chatActivity.mProgressDialog != null) {
                         chatActivity.mProgressDialog.dismiss();
+                        //初始化TitleBar
+                        chatActivity.initTitleBar();
                     }
                     RxToast.error("建立连接失败！信息：" + msg.obj);
                     //跳转到最新位置
+                    if (chatActivity.mRecyclerViewChatMessage.getAdapter().getItemCount() > 1)
                     chatActivity.mRecyclerViewChatMessage.smoothScrollToPosition(chatActivity.mRecyclerViewChatMessage.getAdapter().getItemCount() - 1);
                     break;
                 case LoginHandlerService.RECEIVE_NEW_MESSAGE:
@@ -750,9 +744,28 @@ public class ChatActivity extends AppCompatActivity {
                     ChatMessage chatMessage = (ChatMessage) msg.obj;
                     chatActivity.mChatAdapter.addMessage(chatMessage);
                     //跳转到最新位置
+                    if (chatActivity.mRecyclerViewChatMessage.getAdapter().getItemCount() > 1)
                     chatActivity.mRecyclerViewChatMessage.scrollToPosition(chatActivity.mRecyclerViewChatMessage.getAdapter().getItemCount() - 1);
                     break;
             }
+        }
+    }
+
+    /**
+     * 初始化TitleBar的内容
+     */
+    private void initTitleBar() {
+        //显示在线状态
+        String time = Constant.getonlineStatusRandomMapInstant().get(mFriendList.getId());
+        if (!TextUtils.isEmpty(time)) {
+            if (time.equals("online")) {
+                mChatLastMessageLabel.setVisibility(View.GONE);
+            } else {
+                RelativeLayout.LayoutParams layoutParams = (RelativeLayout.LayoutParams) mChatLastMessageTime.getLayoutParams();
+                layoutParams.setMarginStart(10);
+                mChatLastMessageLabel.setVisibility(View.VISIBLE);
+            }
+            mChatLastMessageTime.setText(time);
         }
     }
 

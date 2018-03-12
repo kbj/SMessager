@@ -32,6 +32,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SignatureException;
 import java.security.spec.InvalidKeySpecException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -44,6 +45,7 @@ import me.weey.graduationproject.client.smessager.entity.ChatMessage;
 import me.weey.graduationproject.client.smessager.entity.DataStructure;
 import me.weey.graduationproject.client.smessager.entity.HttpResponse;
 import me.weey.graduationproject.client.smessager.entity.Msg;
+import me.weey.graduationproject.client.smessager.entity.OnlineStatus;
 import me.weey.graduationproject.client.smessager.entity.User;
 import me.weey.graduationproject.client.smessager.sqlite.ChatListOpenHelper;
 import me.weey.graduationproject.client.smessager.utils.AESUtil;
@@ -327,12 +329,9 @@ public class LoginHandlerService extends Service {
             }
             return;
         }
-        if (dataStructure.getMessage().equals("true")) {
-            //流程进到二
-            Constant.getProcessMapInstant().put(friendUser.getId(), 2);
-            //流程的第二步，生成新的密钥对，然后发送给服务器
-            sendPublicKey(friendUser);
-        } else {
+        //尝试解析JSON
+        if (dataStructure.getMessage().equals("false")) {
+            Log.e(TAG, "handleIsOnline: 握手阶段获取好友在线状态接收到false");
             //不在线
             try {
                 Message obtain = Message.obtain();
@@ -344,6 +343,53 @@ public class LoginHandlerService extends Service {
             }
             //流程回归0
             Constant.getProcessMapInstant().put(friendUser.getId(), 0);
+        } else {
+            OnlineStatus onlineStatus = JSON.parseObject(dataStructure.getMessage(), OnlineStatus.class);
+            if (onlineStatus.getOnline()) {
+                //在线
+                Log.i(TAG, "handleIsOnline: 好友在线");
+                //流程进到二
+                Constant.getProcessMapInstant().put(friendUser.getId(), 2);
+                //流程的第二步，生成新的密钥对，然后发送给服务器
+                sendPublicKey(friendUser);
+                //要获取在线时间
+                Constant.getonlineStatusRandomMapInstant().put(friendUser.getId(), "online");
+            } else {
+                //不在线
+                Log.i(TAG, "handleIsOnline: 好友不在线！");
+                try {
+                    Message obtain = Message.obtain();
+                    obtain.what = Constant.CODE_PROCESS_FAILURE;
+                    obtain.obj = "好友此时不在线，请等好友在线后再发起加密聊天吧！";
+                    mChatMessenger.send(obtain);
+                } catch (RemoteException e) {
+                    e.printStackTrace();
+                }
+                //流程回归0
+                Constant.getProcessMapInstant().put(friendUser.getId(), 0);
+                //要获取在线时间
+                Date date = onlineStatus.getLogOutTime();
+                //获取当前的日期
+                String year = RxTimeTool.getCurrentDateTime("yyyy");
+                String month = RxTimeTool.getCurrentDateTime("MM");
+                String day = RxTimeTool.getCurrentDateTime("dd");
+                //获取传来消息的时间
+                String thatYear = RxTimeTool.simpleDateFormat("yyyy", date);
+                String thatMonth = RxTimeTool.simpleDateFormat("MM", date);
+                String thatDay = RxTimeTool.simpleDateFormat("dd", date);
+                //对时间判断显示
+                String time = "";
+                if (!year.equals(thatYear)) {
+                    time = RxTimeTool.simpleDateFormat("yyyy-MM-dd HH:mm", date);
+                } else if (year.equals(thatYear) && !month.equals(thatMonth)) {
+                    time = RxTimeTool.simpleDateFormat("MM-dd HH:mm", date);
+                } else if (year.equals(thatYear) && month.equals(thatMonth) && !day.equals(thatDay)) {
+                    time = RxTimeTool.simpleDateFormat("EEEE HH:mm", date);
+                } else if (year.equals(thatYear) && month.equals(thatMonth) && day.equals(thatDay)) {
+                    time = RxTimeTool.simpleDateFormat("HH:mm", date);
+                }
+                Constant.getonlineStatusRandomMapInstant().put(friendUser.getId(), time);
+            }
         }
     }
 
