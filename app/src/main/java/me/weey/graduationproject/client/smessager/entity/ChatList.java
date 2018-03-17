@@ -11,16 +11,14 @@ import java.util.Date;
 public class ChatList implements Serializable {
     //这个用户对应的ID
     private String userId;
-    //聊天头像的图片下载地址
-    private String avatarUrl;
-    //用户名
-    private String userName;
-    //最新消息
-    private String latestMessage;
-    //上面那条消息对应的发送或者接收时间
+    //最新的消息
+    private String message;
+    //时间
     private Date time;
-    //未读消息的计数
-    private boolean isNewMessage;
+    //消息的类型，文本语音图片
+    private Integer messageType;
+    //是否为新消息
+    private Boolean isNewMessage;
 
     public String getUserId() {
         return userId;
@@ -30,28 +28,12 @@ public class ChatList implements Serializable {
         this.userId = userId;
     }
 
-    public String getAvatarUrl() {
-        return avatarUrl;
+    public String getMessage() {
+        return message;
     }
 
-    public void setAvatarUrl(String avatarUrl) {
-        this.avatarUrl = avatarUrl;
-    }
-
-    public String getUserName() {
-        return userName;
-    }
-
-    public void setUserName(String userName) {
-        this.userName = userName;
-    }
-
-    public String getLatestMessage() {
-        return latestMessage;
-    }
-
-    public void setLatestMessage(String latestMessage) {
-        this.latestMessage = latestMessage;
+    public void setMessage(String message) {
+        this.message = message;
     }
 
     public Date getTime() {
@@ -62,34 +44,29 @@ public class ChatList implements Serializable {
         this.time = time;
     }
 
-    public boolean isNewMessage() {
+    public Integer getMessageType() {
+        return messageType;
+    }
+
+    public void setMessageType(Integer messageType) {
+        this.messageType = messageType;
+    }
+
+    public Boolean getNewMessage() {
         return isNewMessage;
     }
 
-    public void setNewMessage(boolean newMessage) {
+    public void setNewMessage(Boolean newMessage) {
         isNewMessage = newMessage;
-    }
-
-    public ChatList() {
-    }
-
-    public ChatList(String userId, String avatarUrl, String userName, String latestMessage, Date time, boolean isNewMessage) {
-        this.userId = userId;
-        this.avatarUrl = avatarUrl;
-        this.userName = userName;
-        this.latestMessage = latestMessage;
-        this.time = time;
-        this.isNewMessage = isNewMessage;
     }
 
     @Override
     public String toString() {
         return "ChatList{" +
                 "userId='" + userId + '\'' +
-                ", avatarUrl='" + avatarUrl + '\'' +
-                ", userName='" + userName + '\'' +
-                ", latestMessage='" + latestMessage + '\'' +
+                ", message='" + message + '\'' +
                 ", time=" + time +
+                ", messageType=" + messageType +
                 ", isNewMessage=" + isNewMessage +
                 '}';
     }

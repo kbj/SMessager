@@ -36,11 +36,13 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 
 import me.weey.graduationproject.client.smessager.R;
 import me.weey.graduationproject.client.smessager.activity.ChatActivity;
+import me.weey.graduationproject.client.smessager.activity.MainActivity;
 import me.weey.graduationproject.client.smessager.entity.ChatMessage;
 import me.weey.graduationproject.client.smessager.entity.DataStructure;
 import me.weey.graduationproject.client.smessager.entity.HttpResponse;
@@ -104,7 +106,7 @@ public class LoginHandlerService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         //获取LoginActivity的Handler
-        if (intent.getExtras() != null) {
+        if (intent != null) {
             Object mainHandler = intent.getExtras().get(LOGIN_ACTIVITY_HANDLER);
             Object chatHandler = intent.getExtras().get(CHAT_ACTIVITY_HANDLER);
             if (mainHandler != null) {
@@ -193,9 +195,20 @@ public class LoginHandlerService extends Service {
                         //表示这是请求好友列表的回应
                         try {
                             String message = httpResponse.getMessage();
+                            //转换成JSON
+                            List<User> userList = JSON.parseObject(message, MainActivity.type);
                             obtain.what = GET_FRIENDS_LIST;
-                            obtain.obj = message;
-                            mMessager.send(obtain);
+                            if (userList == null) {
+                                obtain.obj = "更新好友列表失败!";
+                            } else {
+                                obtain.obj = "更新好友列表成功！";
+                                //更新
+                                Constant.getFriendsListInstant().clear();
+                                Constant.getFriendsListInstant().addAll(userList);
+                            }
+                            if (mMessager != null) {
+                                mMessager.send(obtain);
+                            }
                         } catch (RemoteException e) {
                             e.printStackTrace();
                         }
@@ -615,7 +628,7 @@ public class LoginHandlerService extends Service {
                     e.printStackTrace();
                 }
                 //判断ChatActivity是否在前台
-                if (ChatActivity.isFront) {
+                if (ChatActivity.isFront && ChatActivity.frontID.equals(friendUser.getId())) {
                     //在前台说明此时用户的身份是发起聊天者
                     if (Constant.getProcessMapInstant().get(friendUser.getId()).equals(5)) {
                         //校验成功以后生成AES密钥
@@ -748,7 +761,11 @@ public class LoginHandlerService extends Service {
             } else {
                 //文本消息
                 //存储到数据库
-                saveMessageToDB(msgID, content, msg.getMsgType(), RxTimeTool.date2String(dataStructure.getTime()), friendUser.getId(), false, "");
+                int isNewMessage = 1;
+                if (ChatActivity.isFront && ChatActivity.frontID.equals(friendUser.getId())) {
+                    isNewMessage = 0;
+                }
+                saveMessageToDB(msgID, content, msg.getMsgType(), RxTimeTool.date2String(dataStructure.getTime()), mMyUser.getId(), friendUser.getId(), false, "", isNewMessage);
                 //发送给Activity
                 addMsgToAdapter(RxTimeTool.date2String(dataStructure.getTime()), friendUser.getId(), msg.getMsgType(), content, voiceSecond, msgID);
             }
@@ -849,8 +866,12 @@ public class LoginHandlerService extends Service {
                                     else voiceSecond = amrDuration + "";
                                 }
                                 //存储到数据库
+                                int isNewMessage = 1;
+                                if (ChatActivity.frontID.equals(friendUser.getId()) && ChatActivity.isFront) {
+                                    isNewMessage = 0;
+                                }
                                 saveMessageToDB(msgID, file.getAbsolutePath(), msgType,
-                                        time, friendUser.getId(), false, voiceSecond);
+                                        time, mMyUser.getId(), friendUser.getId(), false, voiceSecond, isNewMessage);
                                 //发送给Activity
                                 addMsgToAdapter(time, friendUser.getId(), msgType, file.getAbsolutePath(), voiceSecond, msgID);
                             } catch (IOException e) {
@@ -871,7 +892,8 @@ public class LoginHandlerService extends Service {
     /**
      * 保存消息到数据库
      */
-    public void saveMessageToDB(String msgID, String msg, Integer msgType, String date, String userID, Boolean isSend, String voiceSecond) {
+    public void saveMessageToDB(String msgID, String msg, Integer msgType, String date, String myID,
+                                String userID, Boolean isSend, String voiceSecond, int isNewMessage) {
         //把消息都保存到数据库
         ChatListOpenHelper chatListOpenHelper = new ChatListOpenHelper(getApplicationContext(), Constant.CHAT_LIST_DB_NAME, null, 1);
         //新建一个数据库的连接
@@ -880,6 +902,7 @@ public class LoginHandlerService extends Service {
         readableDatabase.beginTransaction();
         ContentValues message = new ContentValues();
         message.put("id", msgID);
+        message.put("myId", myID);
         message.put("user_id", userID);
         message.put("message", msg);
         message.put("time", date);
@@ -891,6 +914,7 @@ public class LoginHandlerService extends Service {
         }
         message.put("message_type", msgType);
         message.put("voice_second", voiceSecond);
+        message.put("is_new_message", isNewMessage);
         readableDatabase.insert("chat_message", null, message);
 
         //设置事务标志为成功，当结束事务时就会提交事务

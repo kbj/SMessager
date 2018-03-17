@@ -21,7 +21,9 @@ import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.View;
 import android.widget.RelativeLayout;
+import android.widget.TextView;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
@@ -56,7 +58,7 @@ import me.weey.graduationproject.client.smessager.utils.UIUtil;
  */
 public class MainActivity extends AppCompatActivity {
 
-    private static final String CHAT_LIST_TABLE_NAME = "chat_list";
+    private static final String CHAT_MESSAGE_TABLE_NAME = "chat_message";
 
     @BindView(R.id.ll_main_content) RelativeLayout mMainContent;
     @BindView(R.id.tb) Toolbar mToolbar;
@@ -67,7 +69,8 @@ public class MainActivity extends AppCompatActivity {
     private MainHandler mMainHandler;
     private LoginHandlerService mLoginHandlerService;
     private User user;
-    private final static Type type = new TypeReference<List<User>>() {}.getType();
+    public final static Type type = new TypeReference<List<User>>() {}.getType();
+    private ChatListAdapter mChatListAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -155,7 +158,7 @@ public class MainActivity extends AppCompatActivity {
         ChatListOpenHelper chatListOpenHelper = new ChatListOpenHelper(getApplicationContext(), Constant.CHAT_LIST_DB_NAME, null, 1);
         //新建一个数据库的连接
         SQLiteDatabase readableDatabase = chatListOpenHelper.getReadableDatabase();
-        /**
+        /*
          *  table：表名称
          *  colums：列名称数组，如果是查询所有可以写null
          *  selection：条件子句，相当于where
@@ -167,21 +170,21 @@ public class MainActivity extends AppCompatActivity {
          *  Cursor：返回值，相当于结果集ResultSet
          */
         //查询数据库
-        Cursor cursor = readableDatabase.query(CHAT_LIST_TABLE_NAME, null, null,
-                null, null, null, "time", null);
+        Cursor cursor = readableDatabase.query(CHAT_MESSAGE_TABLE_NAME,
+                new String[]{"user_id", "message", "time", "message_type", "is_new_message"},
+                "myId = ?", new String[]{user.getId()}, "user_id", null, "DATETIME(time) desc", null);
         if (cursor != null && cursor.getCount() > 0) {
             //有记录
             while (cursor.moveToNext()) {
                 ChatList chatList = new ChatList();
                 //取出结果封装
                 chatList.setUserId(cursor.getString(0).trim());
-                chatList.setAvatarUrl(cursor.getString(1).trim());
-                chatList.setUserName(cursor.getString(2).trim());
-                chatList.setLatestMessage(cursor.getString(3).trim());
-                String timeFormat = cursor.getString(4);
-                chatList.setTime(RxTimeTool.string2Date("yyyy-MM-dd hh:mm:ss", timeFormat));
-                int isNewMsg = cursor.getInt(5);
-                if (isNewMsg == 1) {
+                chatList.setMessage(cursor.getString(1).trim());
+                String timeFormat = cursor.getString(2);
+                chatList.setTime(RxTimeTool.string2Date("yyyy-MM-dd HH:mm:ss", timeFormat));
+                chatList.setMessageType(cursor.getInt(3));
+                int isNew = cursor.getInt(4);
+                if (isNew == 1) {
                     chatList.setNewMessage(true);
                 } else {
                     chatList.setNewMessage(false);
@@ -213,11 +216,36 @@ public class MainActivity extends AppCompatActivity {
         //设置为垂直布局，这也是默认的
         layoutManager.setOrientation(OrientationHelper.VERTICAL);
         //设置Adapter
-        mRecyclerChat.setAdapter(new ChatListAdapter(chatLists, this, isCache));
+        mChatListAdapter = new ChatListAdapter(chatLists, this, isCache);
+        mRecyclerChat.setAdapter(mChatListAdapter);
         //设置分隔线
         //mRecyclerChat.addItemDecoration( new DividerGridItemDecoration(this));
         //设置增加或删除条目的动画
         mRecyclerChat.setItemAnimator(new DefaultItemAnimator());
+        //设置侧滑栏的的背景图
+        View headerView = mNavigation.getHeaderView(0);
+        TextView userName = headerView.findViewById(R.id.tv_userName);
+        TextView email = headerView.findViewById(R.id.tv_email_address);
+        userName.setText(user.getUserName());
+        email.setText(user.getEmail());
+        /*
+         * 设置Adapter的点击事件
+         */
+        mChatListAdapter.setOnItemClickListener(new ChatListAdapter.onItemClickListener() {
+            @Override
+            public void onItemClick(String userID) {
+                //获取对应好友的信息
+                for (User friend : Constant.getFriendsListInstant()) {
+                    if (friend.getId().equals(userID)) {
+                        //设置好Intent传递信息
+                        Intent intent = new Intent(MainActivity.this, ChatActivity.class);
+                        intent.putExtra(ChatActivity.CHAT_INFO, friend);
+                        startActivity(intent);
+                        break;
+                    }
+                }
+            }
+        });
     }
 
     /**
@@ -232,6 +260,7 @@ public class MainActivity extends AppCompatActivity {
      * 把用户信息封装成DataStructure类型
      */
     private String initSendData(User user) {
+        if (user == null) return JSON.toJSONString("");
         user.setRegisterIp(Constant.IP_ADDRESS);
         user.setIMEI(RxDeviceTool.getIMEI(MainActivity.this));
         user.setRegisterBrand(RxDeviceTool.getBuildBrand());
@@ -257,11 +286,26 @@ public class MainActivity extends AppCompatActivity {
                 Constant.MESSAGE_TYPE_GET_FRIENDS_LIST, Constant.MODEL_TYPE_ACCOUNT, 0, new Date());
     }
 
+
     @Override
     protected void onDestroy() {
         //解除服务绑定
         this.unbindService(mConnection);
+        //停止服务
+        Intent intent = new Intent(MainActivity.this, LoginHandlerService.class);
+        stopService(intent);
         super.onDestroy();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        //要更新recyclerView
+        if (mRecyclerChat == null || mChatListAdapter == null) {
+            return;
+        }
+        ArrayList<ChatList> chatLists = initChatList();
+        mChatListAdapter.updateRecord(chatLists);
     }
 
     private ServiceConnection mConnection = new ServiceConnection() {
@@ -289,7 +333,7 @@ public class MainActivity extends AppCompatActivity {
         WeakReference<MainActivity> weakReference;
 
         MainHandler(MainActivity mainActivity) {
-            this.weakReference = new WeakReference<MainActivity>(mainActivity);
+            this.weakReference = new WeakReference<>(mainActivity);
         }
 
         @Override
@@ -313,15 +357,7 @@ public class MainActivity extends AppCompatActivity {
                     break;
                 case LoginHandlerService.GET_FRIENDS_LIST:
                     //请求获取好友列表的回应
-                    String json = (String) msg.obj;
-                    Log.i("好友列表", json);
-                    ArrayList<User> friendsListInstant = Constant.getFriendsListInstant();
-                    List<User> userList = JSON.parseObject(json, type);
-                    if (userList.size() > 0) {
-                        friendsListInstant.clear();
-                        friendsListInstant.addAll(userList);
-                    }
-                    RxToast.info("更新好友列表成功！");
+                    RxToast.info(String.valueOf(msg.obj));
                     break;
                 default:
                     //其他情况

@@ -81,6 +81,7 @@
     </android.support.v7.widget.RecyclerView>
 
     <LinearLayout
+        android:id="@+id/ll_chat"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@drawable/frame_bg"
@@ -88,7 +89,8 @@
         android:paddingLeft="10dp"
         android:paddingRight="10dp"
         android:paddingTop="5dp"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:visibility="gone">
 
         <EditText
             android:id="@+id/et_input_message"
@@ -140,5 +142,43 @@
             android:layout_marginStart="5dp"
             android:layout_gravity="center_vertical"
             android:src="@drawable/send_button"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/ll_waiting_online"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:background="@color/light_gray"
+        android:paddingBottom="5dp"
+        android:paddingLeft="10dp"
+        android:paddingRight="10dp"
+        android:paddingTop="5dp"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/black"
+            android:textStyle="bold"
+            android:textSize="15sp"
+            android:text="@string/waiting"/>
+        <TextView
+            android:id="@+id/tv_waiting_online_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/black"
+            android:textStyle="bold"
+            android:textSize="15sp"
+            android:layout_marginStart="3dp"
+            android:text="test"/>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="3dp"
+            android:text="@string/get_online"
+            android:textColor="@color/black"
+            android:textStyle="bold"
+            android:textSize="15sp"/>
     </LinearLayout>
 </LinearLayout>

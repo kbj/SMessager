@@ -39,4 +39,12 @@
     <string name="shouzhishanghua">手指上滑，取消发送</string>
     <string name="tooshort">录音时间过短</string>
     <string name="toolong">录音时间过长</string>
+    <string name="waiting">Waiting for</string>
+    <string name="get_online">to get online...</string>
+    <string name="generate_my_code">Generate My Invite Code</string>
+    <string name="input_friends_code">Input Code</string>
+    <string name="input_code_hint">Please enter the four digits your friend gave you</string>
+    <string name="generate_code_input">Please tell your friends to input the following four digits and the numbers have been automatically copied to the clipboard</string>
+    <string name="message_voice">[Voice]</string>
+    <string name="message_image">[Image]</string>
 </resources>

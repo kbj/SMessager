@@ -31,6 +31,8 @@
         <activity android:name=".activity.RegisterActivity" android:theme="@style/RegisterTheme" />
         <activity android:name=".activity.NewChatListActivity" android:theme="@style/LoginTheme"/>
         <activity android:name=".activity.ChatActivity" android:theme="@style/LoginTheme"/>
+        <activity android:name=".activity.BigImageActivity" android:theme="@style/LoginTheme"/>
+        <activity android:name=".activity.InputAddFriendActivity" android:theme="@style/LoginTheme"/>
 
 
         <service android:name=".service.LoginHandlerService"/>

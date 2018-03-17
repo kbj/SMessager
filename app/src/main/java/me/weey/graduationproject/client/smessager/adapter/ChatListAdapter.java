@@ -5,6 +5,7 @@ import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -17,14 +18,16 @@ import butterknife.BindView;
 import butterknife.ButterKnife;
 import me.weey.graduationproject.client.smessager.R;
 import me.weey.graduationproject.client.smessager.entity.ChatList;
+import me.weey.graduationproject.client.smessager.entity.User;
 import me.weey.graduationproject.client.smessager.glide.GlideApp;
+import me.weey.graduationproject.client.smessager.utils.Constant;
 
 /**
  * 聊天列表的Adapter
  * Created by weikai on 2018/02/06/0006.
  */
 
-public class ChatListAdapter extends RecyclerView.Adapter<ChatListAdapter.ChatViewHolder> {
+public class ChatListAdapter extends RecyclerView.Adapter<ChatListAdapter.ChatViewHolder> implements View.OnClickListener {
 
     private List<ChatList> mChatLists;
     private Context mContext;
@@ -47,6 +50,8 @@ public class ChatListAdapter extends RecyclerView.Adapter<ChatListAdapter.ChatVi
     public ChatViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
         //引入View
         View view = inflater.inflate(R.layout.list_chat, parent, false);
+        //设置好点击事件
+        view.setOnClickListener(this);
         //创建好Holder
         //返回Holder
         return new ChatViewHolder(view);
@@ -58,18 +63,31 @@ public class ChatListAdapter extends RecyclerView.Adapter<ChatListAdapter.ChatVi
     @Override
     public void onBindViewHolder(ChatViewHolder holder, int position) {
         ChatList chatList = mChatLists.get(position);
-
+        //通过Tag传递点击条目的用户的id
+        holder.itemView.setTag(chatList.getUserId());
         /**
          * 对数据进行处理
          */
         //头像
         setAvatar(holder, chatList);
         //最新消息
-        holder.latestMessage.setText(chatList.getLatestMessage().trim());
+        if (chatList.getMessageType() == Constant.CHAT_MESSAGE_TYPE_TEXT) {
+            holder.latestMessage.setText(chatList.getMessage().trim());
+        } else if (chatList.getMessageType() == Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN ||
+                chatList.getMessageType() == Constant.CHAT_MESSAGE_TYPE_VOICE_NEW) {
+            holder.latestMessage.setText(R.string.message_voice);
+        } else if (chatList.getMessageType() == Constant.CHAT_MESSAGE_TYPE_IMAGE) {
+            holder.latestMessage.setText(R.string.message_image);
+        }
         //用户名
-        holder.userName.setText(chatList.getUserName());
+        for (User user : Constant.getFriendsListInstant()) {
+            if (user.getId().equals(chatList.getUserId())) {
+                holder.userName.setText(user.getUserName());
+                break;
+            }
+        }
         //是否有未读消息
-        if (chatList.isNewMessage()) {
+        if (chatList.getNewMessage()) {
             holder.newMessage.setVisibility(View.VISIBLE);
         } else {
             holder.newMessage.setVisibility(View.INVISIBLE);
@@ -98,7 +116,7 @@ public class ChatListAdapter extends RecyclerView.Adapter<ChatListAdapter.ChatVi
         } else if (year.equals(thatYear) && month.equals(thatMonth) && !day.equals(thatDay)) {
             holder.messageTime.setText(RxTimeTool.simpleDateFormat("EEEE", time));
         } else if (year.equals(thatYear) && month.equals(thatMonth) && day.equals(thatDay)) {
-            holder.messageTime.setText(RxTimeTool.simpleDateFormat("hh:mm", time));
+            holder.messageTime.setText(RxTimeTool.simpleDateFormat("HH:mm", time));
         }
     }
 
@@ -107,7 +125,7 @@ public class ChatListAdapter extends RecyclerView.Adapter<ChatListAdapter.ChatVi
      */
     private void setAvatar(ChatViewHolder holder, ChatList chatList) {
         GlideApp.with(mContext)
-                .load(chatList.getAvatarUrl())
+                .load(Constant.SERVER_ADDRESS + "account/avatars/" + chatList.getUserId())
                 //占位图
                 .placeholder(R.mipmap.book_user)
                 //圆形显示
@@ -131,6 +149,24 @@ public class ChatListAdapter extends RecyclerView.Adapter<ChatListAdapter.ChatVi
     }
 
     /**
+     * 更新数据源
+     */
+    public void updateRecord(List<ChatList> chatLists) {
+        mChatLists = chatLists;
+        notifyDataSetChanged();
+    }
+
+    /**
+     * 条目的点击事件
+     */
+    @Override
+    public void onClick(View v) {
+        //获取用户ID
+        String userID = (String) v.getTag();
+        itemClickListener.onItemClick(userID);
+    }
+
+    /**
      * 在这里查到到list里面的控件
      */
     class ChatViewHolder extends RecyclerView.ViewHolder {
@@ -146,5 +182,18 @@ public class ChatListAdapter extends RecyclerView.Adapter<ChatListAdapter.ChatVi
             //绑定UI
             ButterKnife.bind(this, itemView);
         }
+    }
+
+    /**
+     * 对Activity提供条目的点击事件
+     */
+    public interface onItemClickListener {
+        void onItemClick(String userID);
+    }
+
+    private onItemClickListener itemClickListener;
+
+    public void setOnItemClickListener(onItemClickListener listener) {
+        this.itemClickListener = listener;
     }
 }

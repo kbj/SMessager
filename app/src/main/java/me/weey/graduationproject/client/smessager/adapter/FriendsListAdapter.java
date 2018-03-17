@@ -8,6 +8,7 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import butterknife.BindView;
@@ -80,6 +81,11 @@ public class FriendsListAdapter extends RecyclerView.Adapter<FriendsListAdapter.
                 //判断是否需要只从缓存中读取
                 //.onlyRetrieveFromCache(!isLoadFromNet)
                 .into(holder.avatarView);
+    }
+
+    public void updateList(ArrayList<User> users) {
+        mFriendsLists = users;
+        notifyDataSetChanged();
     }
 
     @Override

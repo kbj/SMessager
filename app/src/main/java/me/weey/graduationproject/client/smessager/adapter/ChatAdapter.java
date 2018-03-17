@@ -210,11 +210,11 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         String thatDay = RxTimeTool.simpleDateFormat("dd", date);
         //对时间判断显示
         if (!year.equals(thatYear)) {
-            time.setText(RxTimeTool.simpleDateFormat("yyyy-MM-dd", date));
+            time.setText(RxTimeTool.simpleDateFormat("yyyy-MM-dd HH:mm", date));
         } else if (year.equals(thatYear) && !month.equals(thatMonth)) {
-            time.setText(RxTimeTool.simpleDateFormat("MM-dd", date));
+            time.setText(RxTimeTool.simpleDateFormat("MM-dd HH:mm", date));
         } else if (year.equals(thatYear) && month.equals(thatMonth) && !day.equals(thatDay)) {
-            time.setText(RxTimeTool.simpleDateFormat("EEEE", date));
+            time.setText(RxTimeTool.simpleDateFormat("EEEE HH:mm", date));
         } else if (year.equals(thatYear) && month.equals(thatMonth) && day.equals(thatDay)) {
             time.setText(RxTimeTool.simpleDateFormat("HH:mm", date));
         }
@@ -374,7 +374,9 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
          */
         @OnClick({R.id.iv_chat_message_receive_image, R.id.iv_chat_message_send_image})
         public void clickImage(View imageView) {
-            onClickImageListener.onClick(imageView, getAdapterPosition());
+            if (mChatMessages.get(getAdapterPosition()) != null) {
+                onClickImageListener.onClick(imageView, mChatMessages.get(getAdapterPosition()).getMessage());
+            }
         }
     }
 
@@ -395,7 +397,7 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
      * 图片消息图片的点击事件
      */
     public interface onClickImageListener {
-        void onClick(View view, int position);
+        void onClick(View view, String path);
     }
 
     private onClickImageListener onClickImageListener;

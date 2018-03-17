@@ -37,11 +37,13 @@ import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
+import com.vondear.rxtools.RxActivityTool;
 import com.vondear.rxtools.RxFileTool;
 import com.vondear.rxtools.RxImageTool;
 import com.vondear.rxtools.RxPhotoTool;
@@ -87,6 +89,7 @@ public class ChatActivity extends AppCompatActivity {
     private final static Type type = new TypeReference<HashMap<String, String>>() {}.getType();
     //判断是否在前台
     public static boolean isFront = false;
+    public static String frontID = "";
 
     @BindView(R.id.tb_chat) Toolbar mToolBar;
     @BindView(R.id.tv_chat_user_name) TextView mChatUserName;
@@ -97,6 +100,9 @@ public class ChatActivity extends AppCompatActivity {
     @BindView(R.id.iv_send_message) ImageView mSendMessage;
     @BindView(R.id.iv_chat_avatar) ImageView mChatFriendsAvatar;
     @BindView(R.id.voice_btn) AudioRecordButton mRecordButton;
+    @BindView(R.id.ll_chat) LinearLayout mChatBar;
+    @BindView(R.id.ll_waiting_online) LinearLayout mWaitingBar;
+    @BindView(R.id.tv_waiting_online_name) TextView mWaitingName;
     private User mFriendList;
     private LoginHandlerService mLoginHandlerService;
     private ChatHandler mChatHandler;
@@ -173,7 +179,10 @@ public class ChatActivity extends AppCompatActivity {
                 //新建一个数据库的连接
                 SQLiteDatabase readableDatabase = chatListOpenHelper.getReadableDatabase();
                 //定义查询
-                Cursor cursor = readableDatabase.query("chat_message", null, "user_id = ?", new String[]{mFriendList.getId()}, null, null, "time", null);
+                Cursor cursor = readableDatabase.query("chat_message", new String[]{"id", "user_id", "message", "time", "chat_type", "message_type", "voice_second"},
+                        "user_id = ? and myId = ?",
+                        new String[]{mFriendList.getId(), mMyUser.getId()},
+                        null, null, "time", null);
                 if (cursor != null && cursor.getCount() > 0) {
                     //有记录
                     while (cursor.moveToNext()) {
@@ -200,6 +209,8 @@ public class ChatActivity extends AppCompatActivity {
                 }
                 //设置气泡点击事件
                 mChatAdapter.setBubbleClickListener(clickBubbleListener);
+                //设置图片点击的事件
+                mChatAdapter.setImageClickListener(clickImageListener);
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
@@ -237,6 +248,19 @@ public class ChatActivity extends AppCompatActivity {
     }
 
     /**
+     * 点击图片启动大图浏览的Activity
+     */
+    private ChatAdapter.onClickImageListener clickImageListener = new ChatAdapter.onClickImageListener() {
+        @Override
+        public void onClick(View view, String path) {
+            if (TextUtils.isEmpty(path)) return;
+            Intent bigImageIntent = new Intent();
+            bigImageIntent.setClass(ChatActivity.this, BigImageActivity.class);
+            bigImageIntent.putExtra(BigImageActivity.BIG_IMAGE_PATH, path);
+            startActivity(bigImageIntent);
+        }
+    };
+    /**
      * 点击气泡的事件
      */
     private ChatAdapter.onClickBubbleListener clickBubbleListener = new ChatAdapter.onClickBubbleListener() {
@@ -266,6 +290,7 @@ public class ChatActivity extends AppCompatActivity {
             }
             //启动动画，播放语音
             if (animationDrawable == null) return;
+            animationDrawable.stop();
             animationDrawable.start();
             ChatAdapter.mIsPlayingVoice = true;
             ChatAdapter.mPlayListPosition = position;
@@ -355,8 +380,8 @@ public class ChatActivity extends AppCompatActivity {
                 Constant.MESSAGE_TYPE_SEND_MESSAGE, Constant.MODEL_TYPE_CHAT, 7, time);
         //保存到数据库
         mLoginHandlerService.saveMessageToDB(msgID, filePath,
-                Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN, RxTimeTool.date2String(time),
-                mFriendList.getId(), true, second);
+                Constant.CHAT_MESSAGE_TYPE_VOICE_HAVE_LISTEN, RxTimeTool.date2String(time), mMyUser.getId(),
+                mFriendList.getId(), true, second, 0);
 
         //封装ChatMessage新增到RecyclerView里面
         ChatMessage chatMessage = new ChatMessage();
@@ -477,7 +502,9 @@ public class ChatActivity extends AppCompatActivity {
 
                 final String msgID = UUID.randomUUID().toString();
                 //保存到数据库
-                mLoginHandlerService.saveMessageToDB(msgID, compressPath, Constant.CHAT_MESSAGE_TYPE_IMAGE, RxTimeTool.date2String(date), mFriendList.getId(), true, imageAbsolutePath);
+                mLoginHandlerService.saveMessageToDB(msgID, compressPath,
+                        Constant.CHAT_MESSAGE_TYPE_IMAGE, RxTimeTool.date2String(date),
+                        mMyUser.getId(), mFriendList.getId(), true, imageAbsolutePath, 0);
 
                 //显示到RecyclerView里面
                 runOnUiThread(new Runnable() {
@@ -537,6 +564,7 @@ public class ChatActivity extends AppCompatActivity {
         }
         //取出intent中的数据
         mFriendList = (User) getIntent().getSerializableExtra(CHAT_INFO);
+        frontID = mFriendList.getId();
         String avatarURL = Constant.SERVER_ADDRESS + "account/avatars/" + mFriendList.getId();
         if (mFriendList == null) return;
         //初始化加密流程的Map
@@ -584,8 +612,8 @@ public class ChatActivity extends AppCompatActivity {
                         time);
                 //保存到数据库 todo:先暂时写成空
                 mLoginHandlerService.saveMessageToDB(msgID, inputMsg,
-                        Constant.CHAT_MESSAGE_TYPE_TEXT, RxTimeTool.date2String(time), mFriendList.getId(),
-                        true, "");
+                        Constant.CHAT_MESSAGE_TYPE_TEXT, RxTimeTool.date2String(time), mMyUser.getId(), mFriendList.getId(),
+                        true, "", 0);
             }
         }.start();
 
@@ -598,6 +626,7 @@ public class ChatActivity extends AppCompatActivity {
         chatMessage.setTime(RxTimeTool.date2String(time));
         chatMessage.setUserId(mFriendList.getId());
 
+        if (mChatAdapter != null)
         mChatAdapter.addMessage(chatMessage);
 
         //文本框回空
@@ -688,12 +717,16 @@ public class ChatActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         isFront = true;
+        if (mFriendList != null) {
+            frontID = mFriendList.getId();
+        }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         isFront = false;
+        frontID = "";
     }
 
     /**
@@ -724,7 +757,7 @@ public class ChatActivity extends AppCompatActivity {
                     if (chatActivity.mProgressDialog != null) {
                         chatActivity.mProgressDialog.dismiss();
                         //初始化TitleBar
-                        chatActivity.initTitleBar();
+                        chatActivity.initOnlineStatus();
                     }
                     break;
                 case Constant.CODE_PROCESS_FAILURE:
@@ -732,7 +765,7 @@ public class ChatActivity extends AppCompatActivity {
                     if (chatActivity.mProgressDialog != null) {
                         chatActivity.mProgressDialog.dismiss();
                         //初始化TitleBar
-                        chatActivity.initTitleBar();
+                        chatActivity.initOnlineStatus();
                     }
                     RxToast.error("建立连接失败！信息：" + msg.obj);
                     //跳转到最新位置
@@ -752,21 +785,27 @@ public class ChatActivity extends AppCompatActivity {
     }
 
     /**
-     * 初始化TitleBar的内容
+     * 初始化在线状态
      */
-    private void initTitleBar() {
+    private void initOnlineStatus() {
         //显示在线状态
         String time = Constant.getonlineStatusRandomMapInstant().get(mFriendList.getId());
         if (!TextUtils.isEmpty(time)) {
             if (time.equals("online")) {
                 mChatLastMessageLabel.setVisibility(View.GONE);
+                //屏蔽等待框
+                mWaitingBar.setVisibility(View.GONE);
+                mChatBar.setVisibility(View.VISIBLE);
             } else {
                 RelativeLayout.LayoutParams layoutParams = (RelativeLayout.LayoutParams) mChatLastMessageTime.getLayoutParams();
                 layoutParams.setMarginStart(10);
                 mChatLastMessageLabel.setVisibility(View.VISIBLE);
+                //不在线要屏蔽输入框
+                mWaitingBar.setVisibility(View.VISIBLE);
+                mWaitingName.setText(mFriendList.getUserName());
+                mChatBar.setVisibility(View.GONE);
             }
             mChatLastMessageTime.setText(time);
         }
     }
-
 }

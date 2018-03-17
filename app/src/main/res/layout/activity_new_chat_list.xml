@@ -11,25 +11,36 @@
         android:id="@+id/new_chat_toolbar"
         android:background="@color/colorPrimary"
         app:titleTextColor="@color/white"
-
         android:focusable="true"
         android:focusableInTouchMode="true"
-
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
-
-        <EditText
-            android:id="@+id/et_search_words"
-            android:layout_marginStart="10dp"
-            android:layout_marginEnd="10dp"
-            android:hint="@string/new_chat"
-            android:maxLines="1"
-            android:minLines="1"
-            android:inputType="text"
-            android:textColorHint="@color/light_gray"
-            android:textColor="@color/white"
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content">
+            <EditText
+                android:id="@+id/et_search_words"
+                android:layout_marginStart="10dp"
+                android:layout_marginEnd="10dp"
+                android:background="@null"
+                android:hint="@string/new_chat"
+                android:maxLines="1"
+                android:minLines="1"
+                android:inputType="text"
+                android:textColorHint="@color/light_gray"
+                android:textColor="@color/white"
+                android:layout_width="0dp"
+                android:layout_weight="20"
+                android:layout_height="40dp" />
+            <ImageView
+                android:id="@+id/iv_add_friend"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:padding="10dp"
+                android:layout_weight="1"
+                android:background="?android:attr/selectableItemBackground"
+                android:src="@mipmap/add_user"/>
+        </LinearLayout>
     </android.support.v7.widget.Toolbar>
 
     <android.support.v7.widget.RecyclerView

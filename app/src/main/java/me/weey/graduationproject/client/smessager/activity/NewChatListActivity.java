@@ -14,9 +14,11 @@ import android.support.v7.widget.OrientationHelper;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
 import android.text.Editable;
+import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.ImageView;
 
 import com.vondear.rxtools.RxActivityTool;
 import com.vondear.rxtools.view.RxToast;
@@ -26,6 +28,7 @@ import java.util.List;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import butterknife.OnClick;
 import butterknife.OnItemSelected;
 import me.weey.graduationproject.client.smessager.R;
 import me.weey.graduationproject.client.smessager.adapter.FriendsListAdapter;
@@ -44,6 +47,8 @@ public class NewChatListActivity extends AppCompatActivity {
     @BindView(R.id.new_chat_toolbar) Toolbar mToolbar;
     @BindView(R.id.et_search_words) EditText mSearchResult;
     private FriendsListAdapter mFriendsListAdapter;
+    private ArrayList<User> mFriendsLists;
+    private static ArrayList<User> mSearchResultLists = new ArrayList<>();
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -63,14 +68,14 @@ public class NewChatListActivity extends AppCompatActivity {
      * 初始化UI
      */
     private void initUI() {
-        final ArrayList<User> friendsListInstant = Constant.getFriendsListInstant();
-        mFriendsListAdapter = new FriendsListAdapter(friendsListInstant, this,
+        mFriendsLists = Constant.getFriendsListInstant();
+        mFriendsListAdapter = new FriendsListAdapter(mFriendsLists, this,
                 new FriendsListAdapter.onRecyclerViewItemClickListener() {
             @Override
             public void onItemClick(View view, int position) {
                 //RecyclerView中的条目的点击事件
                 Intent intent = new Intent(NewChatListActivity.this, ChatActivity.class);
-                intent.putExtra(ChatActivity.CHAT_INFO, friendsListInstant.get(position));
+                intent.putExtra(ChatActivity.CHAT_INFO, mFriendsLists.get(position));
                 startActivity(intent);
                 finish();
             }
@@ -123,10 +128,41 @@ public class NewChatListActivity extends AppCompatActivity {
             @Override
             public void afterTextChanged(Editable s) {
                 //根据关键词刷新RecyclerView的Adapter
-
+                String key = mSearchResult.getText().toString().trim();
+                //清空搜索List
+                mSearchResultLists.clear();
+                //判断搜索框是否为空
+                if (TextUtils.isEmpty(key)) {
+                    //显示全部用户
+                    mFriendsListAdapter.updateList(mFriendsLists);
+                    return;
+                }
+                //遍历搜索
+                for (User user : mFriendsLists) {
+                    if (user.getId().contains(key) || user.getUserName().contains(key)
+                            || user.getEmail().contains(key)) {
+                        mSearchResultLists.add(user);
+                    }
+                }
+                //替换
+                mFriendsListAdapter.updateList(mSearchResultLists);
             }
         });
     }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
+        //刷新好友列表的Adapter
+        mFriendsLists = Constant.getFriendsListInstant();
+        mFriendsListAdapter.updateList(mFriendsLists);
+    }
 
+    /**
+     * 点击新增好友
+     */
+    @OnClick(R.id.iv_add_friend)
+    public void clickAddFriends() {
+        RxActivityTool.skipActivity(NewChatListActivity.this, InputAddFriendActivity.class);
+    }
 }
