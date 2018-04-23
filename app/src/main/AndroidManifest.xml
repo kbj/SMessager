@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
 
     <application
         android:name=".MyApplication"
@@ -33,9 +34,21 @@
         <activity android:name=".activity.ChatActivity" android:theme="@style/LoginTheme"/>
         <activity android:name=".activity.BigImageActivity" android:theme="@style/LoginTheme"/>
         <activity android:name=".activity.InputAddFriendActivity" android:theme="@style/LoginTheme"/>
+        <activity android:name=".activity.SettingActivity" android:theme="@style/LoginTheme"/>
 
 
         <service android:name=".service.LoginHandlerService"/>
+
+
+        <provider
+            android:name="android.support.v4.content.FileProvider"
+            android:authorities="me.weey.graduationproject.client.smessager.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 

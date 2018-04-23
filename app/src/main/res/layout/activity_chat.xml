@@ -10,6 +10,8 @@
         android:id="@+id/tb_chat"
         android:background="@color/colorPrimary"
         app:titleTextColor="@color/white"
+        app:expandedTitleMarginEnd="10dp"
+        app:expandedTitleMarginStart="10dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 

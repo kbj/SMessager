@@ -72,6 +72,11 @@ public class Constant {
     public static final int PERMISSION_READ_EXTERNAL_STORAGE = 2002;
 
     /**
+     * 拍照
+     */
+    public static final int PERMISSION_CAMERA = 2003;
+
+    /**
      * --------------------------------------------------------------
      * |--------------------Socket中的ModelType----------------------|
      * --------------------------------------------------------------
@@ -166,9 +171,13 @@ public class Constant {
     public static final String CHAT_MESSAGE_DB_NAME = "ChatMessage.db";
 
     /**
-     * 数据库的集合
+     * 个人信息更新类型
      */
-
+    public static final int INFO_TYPE_NAME = 1201;      //昵称
+    public static final int INFO_TYPE_GENDER = 1202;    //性别
+    public static final int INFO_TYPE_AVATAR = 1203;    //头像
+    public static final int INFO_TYPE_BIO = 1204;       //个人简介
+    public static final int INFO_TYPE_PASSWORD = 1205;  //密码
 
     /**
      * 存放全部好友的List集合

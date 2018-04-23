@@ -669,6 +669,7 @@ public class LoginHandlerService extends Service {
                     CommonUtil.showNotification(getApplicationContext(), BitmapFactory.decodeResource(getResources(), R.mipmap.paper_plane),
                             R.mipmap.ic_message_white_24dp, "您有新的聊天请求!", "您有新的聊天请求!", friendUser.getUserName() + " 请求与您聊天！",
                             pendingIntent, null, 1);
+
                 }
                 break;
             case 4:
@@ -1046,6 +1047,13 @@ public class LoginHandlerService extends Service {
                 }
             }
         }.start();
+    }
+
+    /**
+     * 注销方法
+     */
+    public void logout() {
+        mLoginSocket.cancel();
     }
 
     /**

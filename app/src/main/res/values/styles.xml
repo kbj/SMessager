@@ -51,4 +51,9 @@
         <attr name="box_color" format="color"/>
         <attr name="text_color" format="color"/>
     </declare-styleable>
+
+    <style name="ToolbarStyle" parent="Widget.AppCompat.Toolbar">
+        <item name="popupTheme">@style/ThemeOverlay.AppCompat.Light</item>
+        <item name="theme">@style/ThemeOverlay.AppCompat.Dark.ActionBar</item>
+    </style>
 </resources>

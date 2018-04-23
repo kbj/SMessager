@@ -303,7 +303,7 @@ public class InputAddFriendActivity extends AppCompatActivity {
                     friendsListInstant.addAll(userList);
                     RxToast.success("新增好友成功！");
                     inputAddFriendActivity.mVerifyCodeView.setText("");
-                    RxActivityTool.finishActivity();
+                    inputAddFriendActivity.onBackPressed();
                     break;
             }
         }

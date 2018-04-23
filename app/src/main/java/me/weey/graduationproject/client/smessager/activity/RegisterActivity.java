@@ -25,6 +25,7 @@ import android.widget.EditText;
 
 import com.alibaba.fastjson.JSON;
 import com.vondear.rxtools.RxActivityTool;
+import com.vondear.rxtools.RxEncryptTool;
 import com.vondear.rxtools.RxRegTool;
 import com.vondear.rxtools.RxDeviceTool;
 import com.vondear.rxtools.view.RxToast;
@@ -98,48 +99,40 @@ public class RegisterActivity extends AppCompatActivity {
         //播放进入Activity的动画
         ShowEnterAnimation();
         //浮动按钮的点击事件
-        floatingActionButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                animateRevealClose();
-            }
-        });
+        floatingActionButton.setOnClickListener(v -> animateRevealClose());
         //注册按钮的点击事件
-        registerButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                //数据校验
-                boolean validation = validation();
-                if (!validation) return;
-                //显示等待Dialog
-                mProgressDialog = new ProgressDialog(RegisterActivity.this);
-                mProgressDialog.setIndeterminate(false);
-                mProgressDialog.setMessage("请稍候...");
-                mProgressDialog.show();
-                //按钮设置成disable
-                registerButton.setActivated(false);
-                //数据校验通过，需要申请运行时权限，获取IMEI信息
-                //判断系统是否大于6.0
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    MPermissionUtils.requestPermissionsResult(RegisterActivity.this, Constant.PERMISSION_READ_PHONE_STATE, new String[]{Manifest.permission.READ_PHONE_STATE},
-                            new MPermissionUtils.OnPermissionListener() {
-                                @Override
-                                public void onPermissionGranted() {
-                                    //当权限同意的时候
-                                    sendMsgToRegister();
-                                }
+        registerButton.setOnClickListener(v -> {
+            //数据校验
+            boolean validation = validation();
+            if (!validation) return;
+            //显示等待Dialog
+            mProgressDialog = new ProgressDialog(RegisterActivity.this);
+            mProgressDialog.setIndeterminate(false);
+            mProgressDialog.setMessage("请稍候...");
+            mProgressDialog.show();
+            //按钮设置成disable
+            registerButton.setActivated(false);
+            //数据校验通过，需要申请运行时权限，获取IMEI信息
+            //判断系统是否大于6.0
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                MPermissionUtils.requestPermissionsResult(RegisterActivity.this, Constant.PERMISSION_READ_PHONE_STATE, new String[]{Manifest.permission.READ_PHONE_STATE},
+                        new MPermissionUtils.OnPermissionListener() {
+                            @Override
+                            public void onPermissionGranted() {
+                                //当权限同意的时候
+                                sendMsgToRegister();
+                            }
 
-                                @Override
-                                public void onPermissionDenied() {
-                                    //当权限拒绝的时候
-                                    MPermissionUtils.showTipsDialog(RegisterActivity.this);
-                                }
-                            });
-                } else {
-                    //小于6.0的系统就直接请求了
-                    // 通过HTTP请求发送给服务器注册
-                    sendMsgToRegister();
-                }
+                            @Override
+                            public void onPermissionDenied() {
+                                //当权限拒绝的时候
+                                MPermissionUtils.showTipsDialog(RegisterActivity.this);
+                            }
+                        });
+            } else {
+                //小于6.0的系统就直接请求了
+                // 通过HTTP请求发送给服务器注册
+                sendMsgToRegister();
             }
         });
     }
@@ -159,10 +152,12 @@ public class RegisterActivity extends AppCompatActivity {
      * 封装好数据包，通过HTTP的POST请求提交到服务器，并且获得反馈然后显示
      */
     private void sendMsgToRegister() {
+        //封装密码
+        String encryptPass = RxEncryptTool.encryptSHA512ToString(etPassword.getText().toString().trim());
         //封装信息
         User user = new User();
         user.setUserName(etTextUserName.getText().toString().trim().toLowerCase());
-        user.setPassword(etPassword.getText().toString().trim());
+        user.setPassword(encryptPass);
         user.setEmail(etEmail.getText().toString().trim());
         user.setRegisterIp(Constant.IP_ADDRESS);
         user.setIMEI(RxDeviceTool.getIMEI(RegisterActivity.this));

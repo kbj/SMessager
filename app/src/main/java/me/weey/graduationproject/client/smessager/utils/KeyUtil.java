@@ -30,7 +30,7 @@ public class KeyUtil {
      * @return 包含公私密钥的对象
      */
     public static KeyPair generateKey() throws Exception {
-        String name = "secp256r1";
+        String name = "secp256k1";
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("ECDH", BouncyCastleProvider.PROVIDER_NAME);
         kpg.initialize(new ECGenParameterSpec(name));
         //生成密钥

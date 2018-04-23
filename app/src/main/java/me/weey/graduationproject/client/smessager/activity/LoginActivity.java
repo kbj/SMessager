@@ -27,6 +27,7 @@ import android.widget.EditText;
 import com.alibaba.fastjson.JSON;
 import com.vondear.rxtools.RxActivityTool;
 import com.vondear.rxtools.RxDeviceTool;
+import com.vondear.rxtools.RxEncryptTool;
 import com.vondear.rxtools.view.RxToast;
 
 import java.lang.ref.WeakReference;
@@ -57,6 +58,7 @@ public class LoginActivity extends AppCompatActivity {
     @BindView(R.id.fab) FloatingActionButton floatingActionButton;
     private LoginHandler mLoginHandler;
     private String userInfo;
+    private Intent intent;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -155,10 +157,12 @@ public class LoginActivity extends AppCompatActivity {
      * @param pwd 密码
      */
     private String initSendData(String name, String pwd) {
+        //对密码处理
+        String encryptPwd = RxEncryptTool.encryptSHA512ToString(pwd);
         //先把用户名和密码封装成User对象
         User user = new User();
         user.setUserName(name);
-        user.setPassword(pwd);
+        user.setPassword(encryptPwd);
         user.setRegisterIp(Constant.IP_ADDRESS);
         user.setIMEI(RxDeviceTool.getIMEI(LoginActivity.this));
         user.setRegisterBrand(RxDeviceTool.getBuildBrand());
@@ -180,7 +184,7 @@ public class LoginActivity extends AppCompatActivity {
      */
     private void startServiceLogin() {
         //启动一个混合型的Service来完成Socket网络的通信
-        Intent intent = new Intent(LoginActivity.this, LoginHandlerService.class);
+        intent = new Intent(LoginActivity.this, LoginHandlerService.class);
         //把Activity的Handler传入Service
         intent.putExtra(LoginHandlerService.LOGIN_ACTIVITY_HANDLER, new Messenger(mLoginHandler));
         startService(intent);
@@ -268,6 +272,9 @@ public class LoginActivity extends AppCompatActivity {
                 case Constant.CODE_FAILURE:
                     //登录失败
                     RxToast.error("登录失败！错误信息：" + msg.obj);
+                    //注销方法
+                    loginActivity.unbindService(loginActivity.mConnection);
+                    loginActivity.stopService(loginActivity.intent);
                     break;
             }
         }

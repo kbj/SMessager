@@ -3,7 +3,7 @@
 
     <group android:checkableBehavior="single">
         <item
-            android:id="@+id/nav_camera"
+            android:id="@+id/nav_contacts"
             android:icon="@mipmap/ic_contacts_black_24dp"
             android:title="@string/contacts"/>
 

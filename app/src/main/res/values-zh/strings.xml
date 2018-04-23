@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="login_success">登录成功</string>
+    <string name="waiting_for_network">连接中…</string>
+    <string name="login">登录</string>
+    <string name="Username">用户名</string>
+    <string name="loginMessage">用户名/Email</string>
+    <string name="Password">密码</string>
+    <string name="forgot_your_password">忘记密码 ?</string>
+    <string name="repeat_password">重复密码</string>
+    <string name="register">注册</string>
+
+    <!--注册页面表单校验-->
+    <string name="password_repeat_password_not_same">密码不一致!</string>
+    <string name="error_email_address">Email错误!</string>
+    <string name="empty_username">用户名不能为空!</string>
+    <string name="password_length_too_short">密码长度最少要6位!</string>
+    <string name="imei_permission">请允许获取IMEI的权限!</string>
+    <string name="register_success">注册成功! 在登录之前请点击在收件箱中的确认链接!</string>
+    <string name="http_failure">Http错误! 请检查网络状态!</string>
+    <string name="register_failure">注册失败! 错误信息：</string>
+    <string name="navigation_drawer_open">打开</string>
+    <string name="navigation_drawer_close">关闭</string>
+    <string name="contacts">联系人</string>
+    <string name="setting">设置</string>
+    <string name="connection_lost">连接关闭!</string>
+    <string name="user_info_error">用户信息错误! 请重新登录!</string>
+    <string name="new_chat">新聊天</string>
+
+    <string name="waiting">等待</string>
+    <string name="get_online">上线…</string>
+    <string name="generate_my_code">生成随机码</string>
+    <string name="input_friends_code">输入随机码</string>
+    <string name="input_code_hint">请输入朋友给你的四位数字</string>
+    <string name="generate_code_input">告诉你的朋友输入下面显示的四位数字添加好友,四位数字已添加到剪切板中.</string>
+    <string name="message_voice">[语音]</string>
+    <string name="message_image">[图片]</string>
+    <string name="gender">性别</string>
+    <string name="bio">签名</string>
+    <string name="save_data_mode">省流量模式</string>
+    <string name="only_wifi_load_img">在WIFI下自动下载</string>
+    <string name="male">男</string>
+    <string name="female">女</string>
+    <string name="secret">保密</string>
+    <string name="open">打开大图</string>
+    <string name="camera">相机</string>
+    <string name="album">相册</string>
+    <string name="logout">注销</string>
+    <string name="change_password">更改密码</string>
+    <string name="origin_password">原始密码</string>
+    <string name="new_password">新密码</string>
+    <string name="modify">修改</string>
+    <string name="origin_password_error">原始密码错误!</string>
+    <string name="start_messaging">开启SMessager</string>
+</resources>

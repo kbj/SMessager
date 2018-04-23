@@ -1,7 +1,10 @@
 package me.weey.graduationproject.client.smessager.activity;
 
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
@@ -10,7 +13,9 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
+import android.support.annotation.NonNull;
 import android.support.design.widget.NavigationView;
+import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AppCompatActivity;
@@ -21,6 +26,8 @@ import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
@@ -29,6 +36,7 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
 import com.vondear.rxtools.RxActivityTool;
 import com.vondear.rxtools.RxDeviceTool;
+import com.vondear.rxtools.RxEncryptTool;
 import com.vondear.rxtools.RxNetTool;
 import com.vondear.rxtools.RxTimeTool;
 import com.vondear.rxtools.view.RxToast;
@@ -42,6 +50,7 @@ import java.util.List;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
+import butterknife.OnItemSelected;
 import me.weey.graduationproject.client.smessager.R;
 import me.weey.graduationproject.client.smessager.adapter.ChatListAdapter;
 import me.weey.graduationproject.client.smessager.entity.ChatList;
@@ -56,9 +65,12 @@ import me.weey.graduationproject.client.smessager.utils.UIUtil;
 /**
  * 好友列表的Activity
  */
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
 
     private static final String CHAT_MESSAGE_TABLE_NAME = "chat_message";
+    public static final String LOGOUT_BROADCAST = "MainActivity.BindService.Broadcast";
+
+    private static final String TAG = "MainActivity";
 
     @BindView(R.id.ll_main_content) RelativeLayout mMainContent;
     @BindView(R.id.tb) Toolbar mToolbar;
@@ -71,6 +83,7 @@ public class MainActivity extends AppCompatActivity {
     private User user;
     public final static Type type = new TypeReference<List<User>>() {}.getType();
     private ChatListAdapter mChatListAdapter;
+    private LogoutBroadcast mLogoutBroadcast;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,6 +105,10 @@ public class MainActivity extends AppCompatActivity {
         boolean isCache = cacheAvatar(chatLists);
         //初始化UI
         initUI(chatLists, isCache);
+        //初始化广播
+        mLogoutBroadcast = new LogoutBroadcast();
+        IntentFilter intentFilter = new IntentFilter(LOGOUT_BROADCAST);
+        registerReceiver(mLogoutBroadcast, intentFilter);
     }
 
     /**
@@ -120,6 +137,9 @@ public class MainActivity extends AppCompatActivity {
             RxActivityTool.skipActivityAndFinish(getApplicationContext(), LoginActivity.class);
             return;
         }
+        //密码混淆
+        String encryptPwd = RxEncryptTool.encryptSHA512ToString(user.getPassword());
+        user.setPassword(encryptPwd);
         //开启服务完成登录
         Intent intent = new Intent(MainActivity.this, LoginHandlerService.class);
         //把Activity的Handler传入Service
@@ -246,6 +266,8 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+        //条目的点击事件
+        mNavigation.setNavigationItemSelectedListener(this);
     }
 
     /**
@@ -254,6 +276,27 @@ public class MainActivity extends AppCompatActivity {
     @OnClick(R.id.fb_start_chatting)
     public void floatButtonClick() {
         RxActivityTool.skipActivity(this, NewChatListActivity.class);
+    }
+
+    /**
+     * 侧滑栏条目的选择事件
+     */
+    @Override
+    public boolean onNavigationItemSelected(@NonNull MenuItem item) {
+        //需要判断点击
+        switch (item.getItemId()) {
+            case R.id.nav_contacts:
+                //点击到联系人
+                RxActivityTool.skipActivity(MainActivity.this, NewChatListActivity.class);
+                break;
+            case R.id.nav_setting:
+                //点击设置
+                RxActivityTool.skipActivity(MainActivity.this, SettingActivity.class);
+                break;
+        }
+        //导航栏回收
+        mDrawerLayout.closeDrawer(GravityCompat.START);
+        return false;
     }
 
     /**
@@ -291,9 +334,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         //解除服务绑定
         this.unbindService(mConnection);
-        //停止服务
-        Intent intent = new Intent(MainActivity.this, LoginHandlerService.class);
-        stopService(intent);
+        //mLoginHandlerService.stopSelf();
+        //停止绑定广播
+        unregisterReceiver(mLogoutBroadcast);
         super.onDestroy();
     }
 
@@ -323,6 +366,7 @@ public class MainActivity extends AppCompatActivity {
             mLoginHandlerService = null;
         }
     };
+
 
     /**
      * 创建子类用于主线程与子线程通信
@@ -367,6 +411,18 @@ public class MainActivity extends AppCompatActivity {
                     RxActivityTool.skipActivityAndFinish(mainActivity, LoginActivity.class);
                     break;
             }
+        }
+    }
+
+    /**
+     * 注销登录的广播事件
+     */
+    public class LogoutBroadcast extends BroadcastReceiver {
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            mLoginHandlerService.logout();
+            RxActivityTool.skipActivityAndFinish(MainActivity.this, LoginActivity.class);
         }
     }
 

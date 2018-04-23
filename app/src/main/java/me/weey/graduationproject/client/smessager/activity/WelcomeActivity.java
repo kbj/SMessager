@@ -44,14 +44,11 @@ public class WelcomeActivity extends AppCompatActivity {
         ButterKnife.bind(WelcomeActivity.this);
 
         //按钮的点击事件
-        button.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                //跳转到注册的Activity
-                Intent intent = new Intent(WelcomeActivity.this, LoginActivity.class);
-                startActivity(intent);
-                finish();
-            }
+        button.setOnClickListener(v -> {
+            //跳转到注册的Activity
+            Intent intent = new Intent(WelcomeActivity.this, LoginActivity.class);
+            startActivity(intent);
+            finish();
         });
     }
 }

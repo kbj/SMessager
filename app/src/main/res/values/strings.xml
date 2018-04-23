@@ -47,4 +47,21 @@
     <string name="generate_code_input">Please tell your friends to input the following four digits and the numbers have been automatically copied to the clipboard</string>
     <string name="message_voice">[Voice]</string>
     <string name="message_image">[Image]</string>
+    <string name="gender">Gender</string>
+    <string name="bio">Bio</string>
+    <string name="save_data_mode">Save Data Mode</string>
+    <string name="only_wifi_load_img">Automatically download only in WIFI</string>
+    <string name="male">Male</string>
+    <string name="female">Female</string>
+    <string name="secret">Secret</string>
+    <string name="open">Open</string>
+    <string name="camera">Camera</string>
+    <string name="album">Album</string>
+    <string name="logout">Logout</string>
+    <string name="change_password">Change Password</string>
+    <string name="origin_password">Original Password</string>
+    <string name="new_password">New Password</string>
+    <string name="modify">Apply</string>
+    <string name="origin_password_error">Origin Password Error</string>
+    <string name="start_messaging">START MESSAGING</string>
 </resources>
